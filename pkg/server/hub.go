@@ -22,6 +22,8 @@ type Client struct {
 	id   string
 	conn *websocket.Conn
 	send chan []byte
+	ip   string // Only used for ban checks.
+	// Not getting logged, exists only in RAM.
 }
 
 // This is a room/bench.
@@ -63,6 +65,12 @@ type Hub struct {
 	// key = roomID, value = set of benchIDs trusted for that bench.
 	trustedPeers map[string]map[string]bool
 	peersMu      sync.Mutex //another separation for the same reason we don't lock "pairingMu"
+
+	//bannedIPs holds per-room IP bans.
+	//outer key = roomID, inner key = IP string, value = true
+	//in memory only - bans are cleared by restarting the server.
+	bannedIPs map[string]map[string]bool
+	bannedMu  sync.Mutex
 }
 
 // this functions is called once, when this whole thing starts, in main.go
@@ -80,6 +88,9 @@ func NewHub() *Hub {
 		// An empty map here means "no room has any trusted peers yet"
 		// which is exactly the state at startup.
 		trustedPeers: make(map[string]map[string]bool),
+
+		// start empty, entries added by BanIP
+		bannedIPs: make(map[string]map[string]bool),
 	}
 }
 
@@ -131,6 +142,14 @@ func (h *Hub) JoinRoom(roomID, adminHash string, client *Client) {
 	// στο σκοτάδι,
 	// μα κανένα αγάπης σημάδι. 🎶
 
+	// Ban check: if this IP is banned from this room, reject before entry.
+	// A "banned" message is sent first so client can present reason,
+	// then close the channel. After that, writePump will flush and disconnect cleanly.
+	if h.IsBanned(roomID, client.ip) {
+		client.send <- buildOutgoing("banned", "You have been banned from this room", client.id)
+		close(client.send)
+		return
+	}
 	// locking the room, this time, because it writes the client map
 	room.mu.Lock()
 	defer room.mu.Unlock()
@@ -502,6 +521,30 @@ func (h *Hub) HandlePairApproved(roomID, approverBenchID string) {
 	h.BroadcastToRoom(roomID, notify)
 
 	log.Printf("[hub] pairing complete: bench %s is now bidirectionally trusted with bench %s", roomID, approverBenchID)
+}
+
+// This one adds an IP to the ban set for a specific bench.
+// It uses lazy init for the inner map - same pattern as trustedPeers
+// as most rooms will never have a ban, so we don't pre-create inner maps.
+func (h *Hub) BanIP(roomID, ip string) {
+	h.bannedMu.Lock()
+	defer h.bannedMu.Unlock()
+
+	if h.bannedIPs[roomID] == nil {
+		h.bannedIPs[roomID] = make(map[string]bool)
+	}
+
+	h.bannedIPs[roomID][ip] = true
+}
+
+// This one reports if an IP is banned from a bench or not.
+// Accessing a missing key in a nil inner map returns false in Go :o
+// so this is safe even if it has never been called for this room.
+func (h *Hub) IsBanned(roomID, ip string) bool {
+	h.bannedMu.Lock()
+	defer h.bannedMu.Unlock()
+
+	return h.bannedIPs[roomID][ip]
 }
 
 func (h *Hub) RoomCount() int {

@@ -349,6 +349,20 @@ function handleWebSocketMessage(data) {
         case 'pair_rejected':
             addSystemMessage('Pairing rejected. Token may be expired or invalid.')
             break;
+        
+
+        case 'kicked':
+            //this client was banned by the admin
+            showError('You have been banned from this bench.');
+            ws.close();
+            break;
+
+        case 'banned':
+            //triggered on reconnect attempt when IP is already banned
+            showError('You are banned from this bench.');
+            ws.close();
+            break;
+
 
         default:
             console.log('Unknown message type:', data.type);
@@ -380,7 +394,7 @@ function handleMessage(data) {
         playNotificationSound();
     }
 
-    addMessage(decrypted.sender, decrypted.text, decrypted.timestamp);
+    addMessage(decrypted.sender, decrypted.text, decrypted.timestamp, data.senderId);
 }
 
 function handleImage(data) {
@@ -430,7 +444,7 @@ function addSystemMessage(text) {
     scrollToBottom();
 }
 
-function addMessage(sender, text, timestamp) {
+function addMessage(sender, text, timestamp, senderId) {
     const div = document.createElement('div');
     div.className = 'message';
 
@@ -440,11 +454,28 @@ function addMessage(sender, text, timestamp) {
     });
 
     div.innerHTML = `
-            <div class="message-sender">${escapeHtml(sender)}</div>
+            <div class="message-sender">${escapeHtml(sender)}
+            ${adminToken && senderId ? '<button class="btn-ban" title="Ban this user">🚫</button>' : ''}
+            </div>
             <div class="message-content">${escapeHtml(text)}</div>
             <div class="message-time">${time}</div>
         `;
+        //Only the bench admin sees the ban button, and only on other people's messages.
+        //senderId is the server-assigned client ID, not an IP.
+        //Server looks up, the IP internally when ban_client is received
+        if (adminToken && senderId) {
+            const banBtn = div.querySelector('.btn-ban');
 
+            banBtn.addEventListener('click', () => {
+                if (!confirm('Ban this user from the bench? They will not be able to rejoin.')) return;
+
+                ws.send(JSON.stringify({
+                    type: 'ban_client',
+                    roomId: roomId,
+                    payload: senderId
+                }));
+            });
+        }
     messagesContainer.appendChild(div);
     scrollToBottom();
 }
