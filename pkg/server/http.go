@@ -32,6 +32,10 @@ func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler
 	mux.HandleFunc("/health", healthHandler(hub, startTime))
 
 	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Host != "status.benchtalks.chat" {
+			http.NotFound(w, r)
+			return
+		}
 		data, err := fs.ReadFile(stripped, "status.html")
 		if err != nil {
 			http.NotFound(w, r)
