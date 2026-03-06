@@ -50,6 +50,10 @@ func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler
 	// server
 	// always redirects /index.html → / which causes an infinite loop.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Host == "status.benchtalks.chat" {
+			http.Redirect(w, r, "/status", http.StatusFound)
+			return
+		}
 		if r.URL.Path == "/" || r.URL.Path == "" {
 			data, err := fs.ReadFile(stripped, "index.html")
 			if err != nil {
