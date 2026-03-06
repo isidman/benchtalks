@@ -235,6 +235,10 @@ async function connectWebSocket() {
         }
     };
 
+    // Only show the connection error if we haven't already shown a
+    // more specific one (banned, kicked). The socket closing after
+    // a ban triggers onerror too — we don't want it to overwrite
+    // the ban message the user just received.
     ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         if (errorState.classList.contains('hidden')){
