@@ -159,7 +159,7 @@ function init() {
 
     roomId = urlData.roomId;
     encryptionKey = urlData.encryptionKey;
-    adminToken = urlData.adminToken;
+    adminToken = urlData.adminToken; 
     pairToken = urlData.pairToken;
     isPairingURL = pairToken !== null && urlData.claimer !== null;
 

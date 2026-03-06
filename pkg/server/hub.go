@@ -35,14 +35,14 @@ type Room struct {
 	mu        sync.Mutex         // lock before touch clients (ew wtf?)
 }
 
-//This has the benchID allowed to claim + binding bench, 5 min TTL, 
-// ded after this regardless of used flag + self-destuct flag, 
+// This has the benchID allowed to claim + binding bench, 5 min TTL,
+// ded after this regardless of used flag + self-destuct flag,
 // flipped on first valid claim.
 type PairingToken struct {
-	RoomID string
-	ClaimerID	string
+	RoomID    string
+	ClaimerID string
 	ExpiresAt time.Time
-	Used bool
+	Used      bool
 }
 
 // This is a hub. It has all rooms that have users in them. Kinda like a very
@@ -53,16 +53,16 @@ type Hub struct {
 	relay *natspkg.Relay // nil for standalone, set at startup via SetRelay
 
 	// key = sha256(rawToken as hex string)
-// Never storing the raw token same principle 
-// as adminHash.
-pairingTokens map[string]PairingToken
-pairingMu	sync.Mutex 		//separate lock - not holding hub.mu while working crypto.
+	// Never storing the raw token same principle
+	// as adminHash.
+	pairingTokens map[string]PairingToken
+	pairingMu     sync.Mutex //separate lock - not holding hub.mu while working crypto.
 
-// The bench needs a bouncer, 
-// and the bouncer needs a list.
-// key = roomID, value = set of benchIDs trusted for that bench.
-trustedPeers map[string]map[string]bool
-peersMu sync.Mutex 		//another separation for the same reason we don't lock "pairingMu"
+	// The bench needs a bouncer,
+	// and the bouncer needs a list.
+	// key = roomID, value = set of benchIDs trusted for that bench.
+	trustedPeers map[string]map[string]bool
+	peersMu      sync.Mutex //another separation for the same reason we don't lock "pairingMu"
 }
 
 // this functions is called once, when this whole thing starts, in main.go
@@ -71,21 +71,17 @@ func NewHub() *Hub {
 		rooms: make(map[string]*Room),
 
 		// pairing tokens initialised empty — tokens get added when
-        // an admin calls GeneratePairToken and removed (burned) when
-        // VerifyPairClaim runs. Starting empty is correct.
-        pairingTokens: make(map[string]PairingToken),
+		// an admin calls GeneratePairToken and removed (burned) when
+		// VerifyPairClaim runs. Starting empty is correct.
+		pairingTokens: make(map[string]PairingToken),
 
 		// trusted peers initialised empty — entries get added when
-        // RegisterTrustedPeer is called after a successful handshake.
-        // An empty map here means "no room has any trusted peers yet"
-        // which is exactly the state at startup.
-        trustedPeers: make(map[string]map[string]bool),
-
+		// RegisterTrustedPeer is called after a successful handshake.
+		// An empty map here means "no room has any trusted peers yet"
+		// which is exactly the state at startup.
+		trustedPeers: make(map[string]map[string]bool),
 	}
 }
-
-
-
 
 // This one gives the hub a live relay to publish park messages through and its
 // called from main.go, right after "connect()" succeeds after NATS_PEERS.
@@ -132,8 +128,8 @@ func (h *Hub) RoomSize(roomID string) int {
 // adds the client in
 func (h *Hub) JoinRoom(roomID, adminHash string, client *Client) {
 	room := h.getOrCreateRoom(roomID, adminHash) // Παίρνω μες το βράδυ,
-	                                             // στο σκοτάδι,
-												 // μα κανένα αγάπης σημάδι. 🎶
+	// στο σκοτάδι,
+	// μα κανένα αγάπης σημάδι. 🎶
 
 	// locking the room, this time, because it writes the client map
 	room.mu.Lock()
@@ -260,9 +256,9 @@ func (h *Hub) BroadcastToRoom(roomID string, message []byte) {
 	for id, client := range room.clients {
 		select {
 		case client.send <- message:
-			default:
-				close(client.send)
-				delete(room.clients, id)
+		default:
+			close(client.send)
+			delete(room.clients, id)
 		}
 	}
 }
@@ -314,7 +310,6 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 		return false
 	}
 
-	
 	// Send deleted message to everyone first, then wait for writePump to flush
 	// it before closing channels — otherwise the close frame races the deleted
 	// message.
@@ -346,8 +341,8 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 	return true
 }
 
-//NOTICE: GeneratePairToken takes adminToken, which is needed to 
-// verify the caller being actually the room admin before giving 
+//NOTICE: GeneratePairToken takes adminToken, which is needed to
+// verify the caller being actually the room admin before giving
 // out a pairing token.
 
 // This one is called by admin to generate the pairing token for their bench.
@@ -355,36 +350,36 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 func (h *Hub) GeneratePairToken(roomID, adminToken, claimerBenchID string) (string, error) {
 	h.mu.Lock()
 	room, exists := h.rooms[roomID]
-    h.mu.Unlock()
+	h.mu.Unlock()
 
-    if !exists {
-        return "", fmt.Errorf("room %s does not exist", roomID)
-    }
+	if !exists {
+		return "", fmt.Errorf("room %s does not exist", roomID)
+	}
 
-    if !verifyAdminToken(adminToken, room.adminHash) {
-        return "", fmt.Errorf("invalid admin token")
-    }
+	if !verifyAdminToken(adminToken, room.adminHash) {
+		return "", fmt.Errorf("invalid admin token")
+	}
 
-    rawBytes := make([]byte, 32)
-    if _, err := rand.Read(rawBytes); err != nil {
-        return "", fmt.Errorf("failed to generate token: %w", err)
-    }
+	rawBytes := make([]byte, 32)
+	if _, err := rand.Read(rawBytes); err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
 
-    hash := sha256.Sum256(rawBytes)
-    hashHex := hex.EncodeToString(hash[:])
+	hash := sha256.Sum256(rawBytes)
+	hashHex := hex.EncodeToString(hash[:])
 
-    h.pairingMu.Lock()
-    h.pairingTokens[hashHex] = PairingToken{
-        RoomID:    roomID,
-        ClaimerID: claimerBenchID,
-        ExpiresAt: time.Now().Add(5 * time.Minute),
-        Used:      false,
-    }
-    h.pairingMu.Unlock()
+	h.pairingMu.Lock()
+	h.pairingTokens[hashHex] = PairingToken{
+		RoomID:    roomID,
+		ClaimerID: claimerBenchID,
+		ExpiresAt: time.Now().Add(5 * time.Minute),
+		Used:      false,
+	}
+	h.pairingMu.Unlock()
 
-    rawToken := base64.StdEncoding.EncodeToString(rawBytes)
-    log.Printf("[hub] pairing token generated for room %s, claimer %s", roomID, claimerBenchID)
-    return rawToken, nil
+	rawToken := base64.StdEncoding.EncodeToString(rawBytes)
+	log.Printf("[hub] pairing token generated for room %s, claimer %s", roomID, claimerBenchID)
+	return rawToken, nil
 }
 
 // Called by relay when bench.pair.verify.{roomID} arrives.
@@ -443,20 +438,20 @@ func (h *Hub) RegisterTrustedPeer(roomID, benchID string) {
 	h.peersMu.Lock()
 	defer h.peersMu.Unlock()
 
-	// If this is a first peer, the inner map doesn't exist yet. 
-	// It's being created lazily rather than pre-creation for every room. 
+	// If this is a first peer, the inner map doesn't exist yet.
+	// It's being created lazily rather than pre-creation for every room.
 	// Memory preservation goes first, since most benches will never federate.
 	if h.trustedPeers[roomID] == nil {
 		h.trustedPeers[roomID] = make(map[string]bool)
 	}
 
 	h.trustedPeers[roomID][benchID] = true
-	log.Printf("[hub] bench %s registered as trusted peer for bench %s",benchID, roomID)
+	log.Printf("[hub] bench %s registered as trusted peer for bench %s", benchID, roomID)
 }
 
 // Called by Broadcast before relay.Publish().
 // Check if benchID is in trustedPeers for that bench.
-func (h *Hub) IsTrustedPeer(roomID, benchID string) bool{
+func (h *Hub) IsTrustedPeer(roomID, benchID string) bool {
 	h.peersMu.Lock()
 	defer h.peersMu.Unlock()
 
@@ -465,24 +460,24 @@ func (h *Hub) IsTrustedPeer(roomID, benchID string) bool{
 }
 
 // If at least one peer bench has completed a pairing handshake for this room, this one turns true.
-// Used by Broadcast to gate outbound NATS publishing - the bench can be marked public, 
-// ,but can't publish to park until a trust relationship exists, at least. 
+// Used by Broadcast to gate outbound NATS publishing - the bench can be marked public,
+// ,but can't publish to park until a trust relationship exists, at least.
 // No peers = No federation, even if public.
 func (h *Hub) HasTrustedPeers(roomID string) bool {
-    h.peersMu.Lock()
+	h.peersMu.Lock()
 	defer h.peersMu.Unlock()
 
-	// The len() on a nil map returns in Go :o 
+	// The len() on a nil map returns in Go :o
 	// so this is safe even if the inner map was never created.
 	return len(h.trustedPeers[roomID]) > 0
 }
 
-// This one is called by the relay when a message arrives from a peer bench. 
-// Basically it's verification of the claim, registration of trust if valid 
+// This one is called by the relay when a message arrives from a peer bench.
+// Basically it's verification of the claim, registration of trust if valid
 // and publishing the response back via NATS.
 func (h *Hub) HandlePairClaim(roomID, rawToken, claimerBenchID string) {
 	// VerifyPairClaim does all four checks (exists, unused, unexpired,
-    // claimerID match) and burns the token + registers trust if valid.
+	// claimerID match) and burns the token + registers trust if valid.
 	approved := h.VerifyPairClaim(roomID, rawToken, claimerBenchID)
 
 	if h.relay == nil {
@@ -493,11 +488,10 @@ func (h *Hub) HandlePairClaim(roomID, rawToken, claimerBenchID string) {
 	h.relay.PublishPairResponse(roomID, claimerBenchID, approved)
 }
 
-
 // This one is called by the relay when a message from a claimed bench arrives back.
 // The claiming bench has already verified the token and registered the claimed bench as trusted.
 // Now the claimed bench registers the first one as trusted on its own side.
-// BI-DIRECTIONAL TRUST ACHIEVED. *yay* 
+// BI-DIRECTIONAL TRUST ACHIEVED. *yay*
 func (h *Hub) HandlePairApproved(roomID, approverBenchID string) {
 
 	h.RegisterTrustedPeer(roomID, approverBenchID)
@@ -510,7 +504,15 @@ func (h *Hub) HandlePairApproved(roomID, approverBenchID string) {
 	log.Printf("[hub] pairing complete: bench %s is now bidirectionally trusted with bench %s", roomID, approverBenchID)
 }
 
+func (h *Hub) RoomCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.rooms)
+}
 
+func (h *Hub) IsFederated() bool {
+	return h.relay != nil
+}
 
 // The verifyAdminToken hashes the token incoming and checks it against the stored
 // hash.

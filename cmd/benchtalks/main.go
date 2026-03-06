@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/isidman/benchtalks/pkg/config"
 	natspkg "github.com/isidman/benchtalks/pkg/nats"
@@ -35,7 +36,7 @@ func main() {
 		defer relay.Close()
 	}
 
-	router := server.NewRouter(hub, public.StaticFiles)
+	router := server.NewRouter(hub, public.StaticFiles, time.Now())
 
 	log.Printf("Benchtalks is listening on: %s", cfg.Port)
 
