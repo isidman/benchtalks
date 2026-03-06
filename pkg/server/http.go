@@ -2,12 +2,16 @@ package server
 
 import (
 	"embed"
+	"encoding/json"
 	"io/fs"
 	"net/http"
+	"time"
 )
 
+const version = "1.2.0"
+
 // So Go embeds the entire public/ folder into the binary.
-func NewRouter(hub *Hub, staticFiles embed.FS) http.Handler {
+func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler {
 	mux := http.NewServeMux()
 
 	// take off "public" as prefix so /public/index.html is served as
@@ -25,6 +29,17 @@ func NewRouter(hub *Hub, staticFiles embed.FS) http.Handler {
 
 	fileServer := http.FileServer(http.FS(stripped))
 
+	mux.HandleFunc("/health", healthHandler(hub, startTime))
+
+	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		data, err := fs.ReadFile(stripped, "status.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(data)
+	})
 	// ws endpoint c:
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		ServeWS(hub, w, r)
@@ -49,6 +64,28 @@ func NewRouter(hub *Hub, staticFiles embed.FS) http.Handler {
 	})
 
 	return mux
+}
+
+func healthHandler(hub *Hub, startTime time.Time) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		payload := struct {
+			Status     string `json:"status"`
+			Version    string `json:"version"`
+			Uptime     int64  `json:"uptime_seconds"`
+			Rooms      int    `json:"rooms"`
+			Federation bool   `json:"federation"`
+		}{
+			Status:     "ok",
+			Version:    version,
+			Uptime:     int64(time.Since(startTime).Seconds()),
+			Rooms:      hub.RoomCount(),
+			Federation: hub.IsFederated(),
+		}
+		json.NewEncoder(w).Encode(payload)
+
+	}
 }
 
 // Since the go:embed directive needs to be in the same package as the variable
