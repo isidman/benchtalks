@@ -223,11 +223,7 @@ async function connectWebSocket() {
             adminHash: adminHash,
             payload: displayName  // send username as payload
         }));
-
-        // show the chat interface immediately after sending join
-        // the server doesn't echo back to the sender so we don't
-        // wait for a confirmation — connection is already established
-        handleSelfJoined();
+        
     };
 
     ws.onmessage = (event) => {
@@ -241,7 +237,9 @@ async function connectWebSocket() {
 
     ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        showError('Connection error. Please check your internet connection.'); //need to work on error handling
+        if (errorState.classList.contains('hidden')){
+            showError('Connection error. Please check your internet connection.'); //need to work on error handling
+        }
     };
 
     ws.onclose = () => {
@@ -258,15 +256,10 @@ function handleWebSocketMessage(data) {
 
     switch (data.type) {
         case 'join':
-            // someone joined — could be us (first join) or someone else
-            if (!isConnected) {
-                // this is our own join confirmation
-                handleSelfJoined();
-            } else {
-                userCount_n++;// someone else joined
-                updateUserCount(userCount_n);
-                addSystemMessage('Someone joined the bench');
-            }
+            // someone else joined after us
+            userCount_n++;
+            updateUserCount(userCount_n);
+            addSystemMessage('Someone joined the bench');
             break;
 
         case 'leave':
@@ -277,6 +270,8 @@ function handleWebSocketMessage(data) {
             break;
 
         case 'welcome':
+            // this is our own join confirmation
+                handleSelfJoined();
             // Server gives info on how many people are in the room at the moment.
             // Better than counting join/leave events.
             userCount_n = parseInt(data.payload);
@@ -445,6 +440,7 @@ function addSystemMessage(text) {
 }
 
 function addMessage(sender, text, timestamp, senderId) {
+    console.log('addMessage called:', sender, senderId, 'isAdmin:', !!adminToken);
     const div = document.createElement('div');
     div.className = 'message';
 

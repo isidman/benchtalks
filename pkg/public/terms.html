@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service — BenchTalks</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 2rem 1rem;
+            line-height: 1.7;
+        }
+
+        @media (prefers-color-scheme: light) {
+            body { background: #f0f0f0; color: #1a1a1a; }
+            a { color: #1a1a1a; }
+            .callout { border-left-color: #999; background: #e0e0e0; }
+            hr { border-top-color: #ccc; }
+        }
+
+        .page {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .site-header {
+            margin-bottom: 2.5rem;
+        }
+
+        .site-header a {
+            text-decoration: none;
+            color: inherit;
+            font-size: 1.1rem;
+            opacity: 0.7;
+        }
+
+        .site-header a:hover { opacity: 1; }
+
+        h1 {
+            font-size: 1.8rem;
+            margin: 0.5rem 0 0.25rem;
+        }
+
+        .meta {
+            font-size: 0.8rem;
+            opacity: 0.5;
+            margin-top: 0.25rem;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #333;
+            margin: 2rem 0;
+        }
+
+        .callout {
+            border-left: 3px solid #555;
+            background: #222;
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            opacity: 0.85;
+        }
+
+        h2 {
+            font-size: 1rem;
+            margin: 2rem 0 0.75rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        p { margin-bottom: 0.9rem; font-size: 0.92rem; }
+
+        ul {
+            padding-left: 1.5rem;
+            margin-bottom: 0.9rem;
+        }
+
+        ul li {
+            font-size: 0.92rem;
+            margin-bottom: 0.35rem;
+        }
+
+        a { color: #e0e0e0; }
+        a:hover { opacity: 0.7; }
+
+        .contact {
+            font-size: 1rem;
+            margin: 0.5rem 0 1rem;
+        }
+
+        footer {
+            margin-top: 3rem;
+            font-size: 0.78rem;
+            opacity: 0.4;
+            text-align: center;
+        }
+
+        footer a { color: inherit; }
+    </style>
+</head>
+<body>
+    <div class="page">
+
+        <div class="site-header">
+            <a href="/">← BenchTalks</a>
+            <h1>Terms of Service</h1>
+            <p class="meta">Effective date: March 2026 · benchtalks.chat</p>
+        </div>
+
+        <div class="callout">
+            By accessing or using BenchTalks, you agree to these terms. If you do not agree, do not use the service.
+        </div>
+
+        <hr>
+
+        <h2>1. About BenchTalks</h2>
+        <p>BenchTalks is a free, open-source, end-to-end encrypted ephemeral chat service operated by an individual developer. It is provided as a personal project with no commercial backing.</p>
+        <p>The service is provided <strong>as-is</strong> and <strong>without warranty</strong> of any kind. Continued availability is not guaranteed.</p>
+
+        <hr>
+
+        <h2>2. Eligibility</h2>
+        <p>You must be at least <strong>18 years old</strong> to use BenchTalks.</p>
+        <p>By using the service you confirm that you meet this requirement.</p>
+
+        <hr>
+
+        <h2>3. Acceptable Use</h2>
+        <p>You may use BenchTalks only for lawful purposes. You agree <strong>not</strong> to use the service to:</p>
+        <ul>
+            <li>Share, distribute, or solicit content that is illegal under applicable law</li>
+            <li>Share, produce, or distribute child sexual abuse material (CSAM) or any content that sexualises minors — this is an absolute prohibition with no exceptions</li>
+            <li>Harass, threaten, stalk, or abuse any person</li>
+            <li>Distribute malware, viruses, or any code designed to cause harm</li>
+            <li>Engage in fraud, phishing, or impersonation</li>
+            <li>Facilitate or coordinate violence against any person or group</li>
+            <li>Violate the intellectual property rights of any third party</li>
+            <li>Attempt to gain unauthorised access to the service, its infrastructure, or other users' communications</li>
+            <li>Circumvent or attempt to circumvent any technical measures of the service</li>
+        </ul>
+        <p>Violation of these terms may result in immediate termination of your access and, where required by law, reporting to relevant authorities.</p>
+
+        <hr>
+
+        <h2>4. End-to-End Encryption and Content</h2>
+        <p>BenchTalks uses end-to-end encryption (XSalsa20-Poly1305 via TweetNaCl). This means:</p>
+        <ul>
+            <li>Encryption keys are generated in your browser and never transmitted to our servers</li>
+            <li>We cannot read, access, or decrypt the content of your messages or shared files</li>
+            <li>We cannot produce the content of your communications in response to any request, because we do not have access to it</li>
+        </ul>
+        <p>You are solely responsible for the content you share. The technical architecture of the service does not exempt you from legal responsibility for what you communicate.</p>
+
+        <hr>
+
+        <h2>5. Data and Ephemeral Architecture</h2>
+        <p>There are two ways a room and its data are deleted:</p>
+        <ul>
+            <li><strong>Manual deletion by the room admin</strong> — when the admin deletes a room, all associated data (room record, encrypted file blobs, file metadata) is deleted immediately and permanently.</li>
+            <li><strong>Automatic expiry</strong> — if a room is abandoned without being explicitly deleted, it is automatically removed after <strong>30 days of inactivity</strong>.</li>
+        </ul>
+        <p>Messages are not stored server-side. They exist only in the RAM of connected participants' browsers during an active session. When you close the tab, the messages are gone.</p>
+        <p>What the server stores: room identifiers, creation timestamps, encrypted file blobs, and file metadata (filename, size, MIME type).</p>
+        <p>What the server does not store: message content, user identities or accounts, or IP addresses (held transiently in RAM during an active connection only — never written to disk or logs).</p>
+
+        <hr>
+
+        <h2>6. No Warranty</h2>
+        <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.</p>
+        <p>We do not warrant that the service will be uninterrupted, error-free, or free of harmful components. You use the service at your own risk.</p>
+
+        <hr>
+
+        <h2>7. Limitation of Liability</h2>
+        <p>TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, THE OPERATOR OF BENCHTALKS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF DATA, USE, OR PROFITS, ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF THE SERVICE.</p>
+        <p>The operator's total liability for any claim arising out of these terms or your use of the service shall not exceed zero euros (€0), as the service is provided free of charge.</p>
+
+        <hr>
+
+        <h2>8. Indemnification</h2>
+        <p>You agree to indemnify, defend, and hold harmless the operator of BenchTalks from and against any claims, damages, losses, liabilities, costs, and expenses (including reasonable legal fees) arising out of or related to your use of the service or your violation of these terms.</p>
+
+        <hr>
+
+        <h2>9. Termination</h2>
+        <p>We reserve the right to delete any room or terminate access to the service at any time, with or without notice, for any reason, including but not limited to a violation of these terms.</p>
+        <p>Because the service requires no account, termination takes the form of room deletion and, where technically feasible, IP-based access restrictions.</p>
+
+        <hr>
+
+        <h2>10. Reporting Illegal Content or Abuse</h2>
+        <p>If you become aware of content on BenchTalks that you believe is illegal or violates these terms, please contact us immediately:</p>
+        <p class="contact"><strong>b3ncht4lks@protonmail.com</strong></p>
+        <p>Please include the room URL (not the encryption key fragment), a description of the content, and any relevant context. We will act on credible reports as quickly as reasonably possible.</p>
+        <p>Note that due to the end-to-end encrypted architecture, we may not be able to access or verify the content of a reported room. Where possible we will delete the room and associated files.</p>
+
+        <hr>
+
+        <h2>11. Cooperation with Law Enforcement</h2>
+        <p>We will cooperate with lawful requests from law enforcement agencies. Due to the technical architecture of BenchTalks, the data we are able to provide is limited to:</p>
+        <ul>
+            <li>Room creation and last-activity timestamps</li>
+            <li>Encrypted file blobs (which we cannot decrypt and which are meaningless without the key)</li>
+            <li>File metadata: filename, size, MIME type</li>
+        </ul>
+        <p>We cannot provide message content (never stored), decryption keys (never held by the server), user identities (no accounts), or historical IP addresses (never logged).</p>
+
+        <hr>
+
+        <h2>12. Open Source</h2>
+        <p>BenchTalks is open-source software released under the <strong>GNU Affero General Public License v3.0 (AGPL-3.0)</strong>. The source code is available at <a href="https://github.com/isidman/benchtalks" target="_blank">github.com/isidman/benchtalks</a>.</p>
+        <p>The AGPL licence includes its own warranty disclaimer and limitation of liability, which apply in addition to these terms.</p>
+
+        <hr>
+
+        <h2>13. Changes to These Terms</h2>
+        <p>We may update these Terms of Service from time to time. The effective date at the top of this document will be updated accordingly. Continued use of the service after changes are posted constitutes acceptance of the revised terms.</p>
+
+        <hr>
+
+        <h2>14. Governing Law</h2>
+        <p>These terms are governed by the laws of the jurisdiction in which the operator is resident. Any disputes arising from these terms or your use of the service shall be subject to the exclusive jurisdiction of the courts of that jurisdiction.</p>
+
+        <hr>
+
+        <h2>15. Contact</h2>
+        <p>For questions about these terms, abuse reports, or legal requests:</p>
+        <p class="contact"><strong>b3ncht4lks@protonmail.com</strong></p>
+
+        <footer>
+            <p>© March 2026 BenchTalks. Released under AGPL-3.0. · <a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a></p>
+        </footer>
+
+    </div>
+</body>
+</html>

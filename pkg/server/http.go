@@ -49,6 +49,15 @@ func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler
 		ServeWS(hub, w, r)
 	})
 
+	//Serving T&Cs
+	mux.HandleFunc("/terms.html", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./pkg/public/terms.html")
+	})
+
+	mux.HandleFunc("/privacy.html", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./pkg/public/privacy.html")
+	})
+
 	// Read index.html directly from the embedded FS and serve it ourselves.
 	// We bypass the file server entirely for this one file because Go's file
 	// server

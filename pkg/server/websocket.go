@@ -164,9 +164,15 @@ func (c *Client) readPump(hub *Hub) {
 		case "join":
 			roomID = msg.RoomID
 			hub.JoinRoom(roomID, msg.AdminHash, c)
+			// If JoinRoom rejected the client due to a ban, the channel is closed already.
+			// No need to try sending anything, stopping...
+			if c.isClosed() {
+				return
+			}
+
 			notify := buildOutgoing("join", "", c.id)
 			hub.Broadcast(roomID, c.id, notify)
-			log.Printf("JOIN: roomID=%s adminHash=%s", roomID, msg.AdminHash)
+			//log.Printf("JOIN: roomID=%s adminHash=%s", roomID, msg.AdminHash) //That was for debugging purposes.
 
 			count := hub.RoomSize(roomID)
 			welcome := buildOutgoing("welcome", fmt.Sprintf("%d", count), c.id)
@@ -325,8 +331,8 @@ func (c *Client) readPump(hub *Hub) {
 			// Ban IP first, then kick client.
 			// The IP is read from the struct, not logged, not sent anywhere.
 			hub.BanIP(roomID, target.ip)
-			target.send <- buildOutgoing("kicked", "you have been banned from this room", target.id)
-			close(target.send)
+			target.safeSend(buildOutgoing("kicked", "you have been banned from this room", target.id))
+			target.safeClose()
 
 			// The target is not removed from room.clients here.
 			// When close(target.send) is fired, writePump exits,

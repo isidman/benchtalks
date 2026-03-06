@@ -24,6 +24,8 @@ type Client struct {
 	send chan []byte
 	ip   string // Only used for ban checks.
 	// Not getting logged, exists only in RAM.
+	closed  bool       // True once send channel has been closed.
+	closeMu sync.Mutex //guards closed flag.
 }
 
 // This is a room/bench.
@@ -146,8 +148,9 @@ func (h *Hub) JoinRoom(roomID, adminHash string, client *Client) {
 	// A "banned" message is sent first so client can present reason,
 	// then close the channel. After that, writePump will flush and disconnect cleanly.
 	if h.IsBanned(roomID, client.ip) {
-		client.send <- buildOutgoing("banned", "You have been banned from this room", client.id)
-		close(client.send)
+		client.safeSend(buildOutgoing("banned", "You have been banned from this room", client.id))
+		time.Sleep(100 * time.Millisecond) //give writePump time to flush before closing
+		client.safeClose()
 		return
 	}
 	// locking the room, this time, because it writes the client map
@@ -199,17 +202,11 @@ func (h *Hub) Broadcast(roomID string, senderID string, message []byte) {
 		if id == senderID {
 			continue //no going back to sender
 		}
-
+		client.safeSend(message)
 		// This part allows kind-of asynchronous reading of messages on "send"
 		// channel of each client.
 		// And the rest of the clients don't need to wait for everyone to read
 		// the message broadcasted.
-		select {
-		case client.send <- message:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
 	}
 
 	// Two conditions: public room and live relay. That's all it takes to
@@ -248,13 +245,8 @@ func (h *Hub) BroadcastFromPark(roomID string, senderBenchID string, payload []b
 	room.mu.Lock()
 	defer room.mu.Unlock()
 
-	for id, client := range room.clients {
-		select {
-		case client.send <- payload:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
+	for _, client := range room.clients {
+		client.safeSend(payload)
 	}
 	// No "relay.Publish" loop prevention
 }
@@ -272,13 +264,8 @@ func (h *Hub) BroadcastToRoom(roomID string, message []byte) {
 	room.mu.Lock()
 	defer room.mu.Unlock()
 
-	for id, client := range room.clients {
-		select {
-		case client.send <- message:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
+	for _, client := range room.clients {
+		client.safeSend(message)
 	}
 }
 
@@ -335,10 +322,7 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 	deletedMsg := buildOutgoing("deleted", "", "")
 	room.mu.Lock()
 	for _, client := range room.clients {
-		select {
-		case client.send <- deletedMsg:
-		default:
-		}
+		client.safeSend(deletedMsg)
 	}
 	room.mu.Unlock()
 
@@ -348,7 +332,7 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 	// now close all channels — writePump catches this and disconnects
 	room.mu.Lock()
 	for _, client := range room.clients {
-		close(client.send)
+		client.safeClose()
 	}
 	room.mu.Unlock()
 
@@ -578,4 +562,39 @@ func verifyAdminToken(token, storedHash string) bool {
 	log.Printf("COMPUTED HASH: %s", hexHash)
 	log.Printf("STORED HASH:   %s", storedHash)
 	return hexHash == storedHash
+}
+
+// This one send a message to a client's channel without panicking :$
+// if the channel is already closed.
+func (c *Client) safeSend(msg []byte) {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if !c.closed {
+		select {
+		case c.send <- msg:
+		default:
+			// full channel: close rather than block
+			c.closed = true
+			close(c.send)
+		}
+	}
+}
+
+// This one safely checks if the client's channel
+// has been closed.
+func (c *Client) isClosed() bool {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	return c.closed
+}
+
+// This one closes the client's send channel exactly once.
+// Calling it a second time is a no-op instead of panic.
+func (c *Client) safeClose() {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if !c.closed {
+		c.closed = true
+		close(c.send)
+	}
 }
