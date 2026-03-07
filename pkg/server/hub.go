@@ -558,9 +558,9 @@ func verifyAdminToken(token, storedHash string) bool {
 	}
 	hash := sha256.Sum256(tokenBytes)
 	hexHash := hex.EncodeToString(hash[:])
-	log.Printf("TOKEN: %s", token)
-	log.Printf("COMPUTED HASH: %s", hexHash)
-	log.Printf("STORED HASH:   %s", storedHash)
+	// log.Printf("TOKEN: %s", token)
+	// log.Printf("COMPUTED HASH: %s", hexHash)
+	// log.Printf("STORED HASH:   %s", storedHash)
 	return hexHash == storedHash
 }
 
