@@ -139,15 +139,10 @@ In practice, because we hold no personal data linked to your identity, most of t
 
 If you have a specific concern or request, contact us at **b3ncht4lks@protonmail.com** and we will respond within 30 days.
 
----
-
-## 11. Children
-
-BenchTalks is not directed at children under 18. We do not knowingly process data from children under 18. If you are aware that a person under 18 is using the service, please contact us at **b3ncht4lks@protonmail.com**.
 
 ---
 
-## 12. Security
+## 11. Security
 
 We take reasonable technical measures to protect the service and the limited data we hold. These include:
 
@@ -161,7 +156,7 @@ No system is perfectly secure. If you discover a security vulnerability, please 
 
 ---
 
-## 13. Changes to This Policy
+## 12. Changes to This Policy
 
 We may update this Privacy Policy to reflect changes in the service or applicable law. The effective date at the top of this document will be updated when changes are made.
 
@@ -169,7 +164,7 @@ Continued use of the service after an update constitutes acceptance of the revis
 
 ---
 
-## 14. Contact
+## 13. Contact
 
 For any privacy-related questions, data requests, or concerns:
 
