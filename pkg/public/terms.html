@@ -104,6 +104,19 @@
         footer a { color: inherit; }
     </style>
 </head>
+    <script>
+    // Email is base64-encoded to avoid scraper harvesting.
+    // atob() decodes it client-side — any human visitor with JS enabled sees it fine.
+    const e = atob('YjNuY2h0NGxrc0Bwcm90b25tYWlsLmNvbQ==');
+    document.querySelectorAll('.contact-email').forEach(el => {
+        if (el.tagName === 'A') {
+            el.href = 'mailto:' + e;
+            el.textContent = e;
+        } else {
+            el.textContent = e;
+        }
+    });
+</script>
 <body>
     <div class="page">
 
