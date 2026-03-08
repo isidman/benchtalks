@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -13,12 +14,12 @@ import (
 
 // Ping-pong timer booboo
 const (
-	writeWait  = 10 * time.Second // sending you the message within 10 seconds,
-	                              // otherwise fricc you.
-	pongWait   = 60 * time.Second // "are you there? in 60s you won't be either
-	                              // way"
+	writeWait = 10 * time.Second // sending you the message within 10 seconds,
+	// otherwise fricc you.
+	pongWait = 60 * time.Second // "are you there? in 60s you won't be either
+	// way"
 	pingPeriod = 45 * time.Second // "BEFORE YOU'RE GONE though... are you even
-	                              // alive?"
+	// alive?"
 )
 
 // Ξαναπαίρνω στο ονειρό μου... μα σιωπή μόνο στο κινητό μου! 🎶
@@ -75,10 +76,22 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//Extraction of client IP before r disappears.
+	//After the WS upgrade, r is gone and this is the only place we have it.
+	//X-Forwarded-For comes first since Traefik adds it and without it,
+	//r.RemoteAddr would always be Traefik's internal Docker IP, making ban checks useless.
+	//Never logged, living on the client struct only.
+	ip := r.Header.Get("X-Forwarded-For")
+	if ip == "" {
+		//Direct connection. RemoteAddr is "ip:port", stripping the port.
+		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+	}
+
 	client := &Client{
 		id:   newID(),
 		conn: conn,
 		send: make(chan []byte, 256),
+		ip:   ip, //stored once, never modified, never logged
 	}
 
 	go client.readPump(hub)
@@ -151,9 +164,15 @@ func (c *Client) readPump(hub *Hub) {
 		case "join":
 			roomID = msg.RoomID
 			hub.JoinRoom(roomID, msg.AdminHash, c)
+			// If JoinRoom rejected the client due to a ban, the channel is closed already.
+			// No need to try sending anything, stopping...
+			if c.isClosed() {
+				return
+			}
+
 			notify := buildOutgoing("join", "", c.id)
 			hub.Broadcast(roomID, c.id, notify)
-			log.Printf("JOIN: roomID=%s adminHash=%s", roomID, msg.AdminHash)
+			//log.Printf("JOIN: roomID=%s adminHash=%s", roomID, msg.AdminHash) //That was for debugging purposes.
 
 			count := hub.RoomSize(roomID)
 			welcome := buildOutgoing("welcome", fmt.Sprintf("%d", count), c.id)
@@ -205,11 +224,11 @@ func (c *Client) readPump(hub *Hub) {
 				hub.Broadcast(roomID, c.id, notify)
 				c.send <- buildOutgoing("made_public", "", c.id)
 			}
-		
+
 		// Request for pairing token
 		case "request_pair":
 			// guard: must be in a room
-			if roomID == ""  {
+			if roomID == "" {
 				continue
 			}
 
@@ -232,11 +251,11 @@ func (c *Client) readPump(hub *Hub) {
 			}
 
 			// Build the pairing URL and send it back to the admin's browser.
-    		// The admin copies this URL and shares it with the bench-B operator.
+			// The admin copies this URL and shares it with the bench-B operator.
 
-    		// Note: the raw token is being sent here — the browser will put it in
-    		// the ?pair= query param of the URL it constructs.
-    		// The claimerBenchID is sent as well, so the browser can put it in &claimer=
+			// Note: the raw token is being sent here — the browser will put it in
+			// the ?pair= query param of the URL it constructs.
+			// The claimerBenchID is sent as well, so the browser can put it in &claimer=
 			pairPayload := rawToken + "|" + claimerBenchID
 			c.send <- buildOutgoing("pair_token", pairPayload, c.id)
 
@@ -258,7 +277,7 @@ func (c *Client) readPump(hub *Hub) {
 				c.send <- errMsg
 				continue
 			}
-			
+
 			// Publish the claim to the park via NATS.
 			// e.x: bench A will receive it on bench.pair.verify.{roomID},
 			// verify it, and publish back apporoved or rejected.
@@ -269,6 +288,56 @@ func (c *Client) readPump(hub *Hub) {
 			// and goes through HandlePairApproved or HandlePairRejected.
 			// The client gets notified when that happens via a future WS message.
 			c.send <- buildOutgoing("pair_claim_sent", "", c.id)
+
+		case "ban_client":
+			//Guard: must be in a room
+			if roomID == "" {
+				continue
+			}
+
+			//The msg.Payload is the senderID of the client to ban.
+			//Admin doesn't share or sees an IP - there's server lookup internally.
+			targetID := msg.Payload
+			if targetID == "" {
+				c.send <- buildOutgoing("error", "missing target client ID", c.id)
+				continue
+			}
+
+			//Prevent admin from banning themselves.
+			if targetID == c.id {
+				c.send <- buildOutgoing("error", "cannot ban yourself", c.id)
+				continue
+			}
+
+			//Finding the target client in the room/bench, requires
+			//the room lock, so as to safely read the clients map.
+			hub.mu.Lock()
+			room, exists := hub.rooms[roomID]
+			hub.mu.Unlock()
+
+			if !exists {
+				continue
+			}
+
+			room.mu.Lock()
+			target, found := room.clients[targetID]
+			room.mu.Unlock()
+
+			if !found {
+				c.send <- buildOutgoing("error", "client not found in room", c.id)
+				continue
+			}
+
+			// Ban IP first, then kick client.
+			// The IP is read from the struct, not logged, not sent anywhere.
+			hub.BanIP(roomID, target.ip)
+			target.safeSend(buildOutgoing("kicked", "you have been banned from this room", target.id))
+			target.safeClose()
+
+			// The target is not removed from room.clients here.
+			// When close(target.send) is fired, writePump exits,
+			// which causes readPump to exit, which runs the defer.
+			// The defer calls LeaveRoom, that removes the target from the map.
 		}
 	}
 }

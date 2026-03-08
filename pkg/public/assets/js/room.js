@@ -223,11 +223,7 @@ async function connectWebSocket() {
             adminHash: adminHash,
             payload: displayName  // send username as payload
         }));
-
-        // show the chat interface immediately after sending join
-        // the server doesn't echo back to the sender so we don't
-        // wait for a confirmation — connection is already established
-        handleSelfJoined();
+        
     };
 
     ws.onmessage = (event) => {
@@ -239,9 +235,15 @@ async function connectWebSocket() {
         }
     };
 
+    // Only show the connection error if we haven't already shown a
+    // more specific one (banned, kicked). The socket closing after
+    // a ban triggers onerror too — we don't want it to overwrite
+    // the ban message the user just received.
     ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        showError('Connection error. Please check your internet connection.'); //need to work on error handling
+        if (errorState.classList.contains('hidden')){
+            showError('Connection error. Please check your internet connection.'); //need to work on error handling
+        }
     };
 
     ws.onclose = () => {
@@ -258,15 +260,10 @@ function handleWebSocketMessage(data) {
 
     switch (data.type) {
         case 'join':
-            // someone joined — could be us (first join) or someone else
-            if (!isConnected) {
-                // this is our own join confirmation
-                handleSelfJoined();
-            } else {
-                userCount_n++;// someone else joined
-                updateUserCount(userCount_n);
-                addSystemMessage('Someone joined the bench');
-            }
+            // someone else joined after us
+            userCount_n++;
+            updateUserCount(userCount_n);
+            addSystemMessage('Someone joined the bench');
             break;
 
         case 'leave':
@@ -277,6 +274,8 @@ function handleWebSocketMessage(data) {
             break;
 
         case 'welcome':
+            // this is our own join confirmation
+                handleSelfJoined();
             // Server gives info on how many people are in the room at the moment.
             // Better than counting join/leave events.
             userCount_n = parseInt(data.payload);
@@ -349,6 +348,20 @@ function handleWebSocketMessage(data) {
         case 'pair_rejected':
             addSystemMessage('Pairing rejected. Token may be expired or invalid.')
             break;
+        
+
+        case 'kicked':
+            //this client was banned by the admin
+            showError('You have been banned from this bench.');
+            ws.close();
+            break;
+
+        case 'banned':
+            //triggered on reconnect attempt when IP is already banned
+            showError('You are banned from this bench.');
+            ws.close();
+            break;
+
 
         default:
             console.log('Unknown message type:', data.type);
@@ -380,7 +393,7 @@ function handleMessage(data) {
         playNotificationSound();
     }
 
-    addMessage(decrypted.sender, decrypted.text, decrypted.timestamp);
+    addMessage(decrypted.sender, decrypted.text, decrypted.timestamp, data.senderId);
 }
 
 function handleImage(data) {
@@ -430,7 +443,8 @@ function addSystemMessage(text) {
     scrollToBottom();
 }
 
-function addMessage(sender, text, timestamp) {
+function addMessage(sender, text, timestamp, senderId) {
+    console.log('addMessage called:', sender, senderId, 'isAdmin:', !!adminToken);
     const div = document.createElement('div');
     div.className = 'message';
 
@@ -440,11 +454,28 @@ function addMessage(sender, text, timestamp) {
     });
 
     div.innerHTML = `
-            <div class="message-sender">${escapeHtml(sender)}</div>
+            <div class="message-sender">${escapeHtml(sender)}
+            ${adminToken && senderId ? '<button class="btn-ban" title="Ban this user">🚫</button>' : ''}
+            </div>
             <div class="message-content">${escapeHtml(text)}</div>
             <div class="message-time">${time}</div>
         `;
+        //Only the bench admin sees the ban button, and only on other people's messages.
+        //senderId is the server-assigned client ID, not an IP.
+        //Server looks up, the IP internally when ban_client is received
+        if (adminToken && senderId) {
+            const banBtn = div.querySelector('.btn-ban');
 
+            banBtn.addEventListener('click', () => {
+                if (!confirm('Ban this user from the bench? They will not be able to rejoin.')) return;
+
+                ws.send(JSON.stringify({
+                    type: 'ban_client',
+                    roomId: roomId,
+                    payload: senderId
+                }));
+            });
+        }
     messagesContainer.appendChild(div);
     scrollToBottom();
 }

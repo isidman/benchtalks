@@ -22,6 +22,10 @@ type Client struct {
 	id   string
 	conn *websocket.Conn
 	send chan []byte
+	ip   string // Only used for ban checks.
+	// Not getting logged, exists only in RAM.
+	closed  bool       // True once send channel has been closed.
+	closeMu sync.Mutex //guards closed flag.
 }
 
 // This is a room/bench.
@@ -63,6 +67,12 @@ type Hub struct {
 	// key = roomID, value = set of benchIDs trusted for that bench.
 	trustedPeers map[string]map[string]bool
 	peersMu      sync.Mutex //another separation for the same reason we don't lock "pairingMu"
+
+	//bannedIPs holds per-room IP bans.
+	//outer key = roomID, inner key = IP string, value = true
+	//in memory only - bans are cleared by restarting the server.
+	bannedIPs map[string]map[string]bool
+	bannedMu  sync.Mutex
 }
 
 // this functions is called once, when this whole thing starts, in main.go
@@ -80,6 +90,9 @@ func NewHub() *Hub {
 		// An empty map here means "no room has any trusted peers yet"
 		// which is exactly the state at startup.
 		trustedPeers: make(map[string]map[string]bool),
+
+		// start empty, entries added by BanIP
+		bannedIPs: make(map[string]map[string]bool),
 	}
 }
 
@@ -131,6 +144,15 @@ func (h *Hub) JoinRoom(roomID, adminHash string, client *Client) {
 	// στο σκοτάδι,
 	// μα κανένα αγάπης σημάδι. 🎶
 
+	// Ban check: if this IP is banned from this room, reject before entry.
+	// A "banned" message is sent first so client can present reason,
+	// then close the channel. After that, writePump will flush and disconnect cleanly.
+	if h.IsBanned(roomID, client.ip) {
+		client.safeSend(buildOutgoing("banned", "You have been banned from this room", client.id))
+		time.Sleep(100 * time.Millisecond) //give writePump time to flush before closing
+		client.safeClose()
+		return
+	}
 	// locking the room, this time, because it writes the client map
 	room.mu.Lock()
 	defer room.mu.Unlock()
@@ -180,17 +202,11 @@ func (h *Hub) Broadcast(roomID string, senderID string, message []byte) {
 		if id == senderID {
 			continue //no going back to sender
 		}
-
+		client.safeSend(message)
 		// This part allows kind-of asynchronous reading of messages on "send"
 		// channel of each client.
 		// And the rest of the clients don't need to wait for everyone to read
 		// the message broadcasted.
-		select {
-		case client.send <- message:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
 	}
 
 	// Two conditions: public room and live relay. That's all it takes to
@@ -229,13 +245,8 @@ func (h *Hub) BroadcastFromPark(roomID string, senderBenchID string, payload []b
 	room.mu.Lock()
 	defer room.mu.Unlock()
 
-	for id, client := range room.clients {
-		select {
-		case client.send <- payload:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
+	for _, client := range room.clients {
+		client.safeSend(payload)
 	}
 	// No "relay.Publish" loop prevention
 }
@@ -253,13 +264,8 @@ func (h *Hub) BroadcastToRoom(roomID string, message []byte) {
 	room.mu.Lock()
 	defer room.mu.Unlock()
 
-	for id, client := range room.clients {
-		select {
-		case client.send <- message:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
+	for _, client := range room.clients {
+		client.safeSend(message)
 	}
 }
 
@@ -316,10 +322,7 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 	deletedMsg := buildOutgoing("deleted", "", "")
 	room.mu.Lock()
 	for _, client := range room.clients {
-		select {
-		case client.send <- deletedMsg:
-		default:
-		}
+		client.safeSend(deletedMsg)
 	}
 	room.mu.Unlock()
 
@@ -329,7 +332,7 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 	// now close all channels — writePump catches this and disconnects
 	room.mu.Lock()
 	for _, client := range room.clients {
-		close(client.send)
+		client.safeClose()
 	}
 	room.mu.Unlock()
 
@@ -504,6 +507,30 @@ func (h *Hub) HandlePairApproved(roomID, approverBenchID string) {
 	log.Printf("[hub] pairing complete: bench %s is now bidirectionally trusted with bench %s", roomID, approverBenchID)
 }
 
+// This one adds an IP to the ban set for a specific bench.
+// It uses lazy init for the inner map - same pattern as trustedPeers
+// as most rooms will never have a ban, so we don't pre-create inner maps.
+func (h *Hub) BanIP(roomID, ip string) {
+	h.bannedMu.Lock()
+	defer h.bannedMu.Unlock()
+
+	if h.bannedIPs[roomID] == nil {
+		h.bannedIPs[roomID] = make(map[string]bool)
+	}
+
+	h.bannedIPs[roomID][ip] = true
+}
+
+// This one reports if an IP is banned from a bench or not.
+// Accessing a missing key in a nil inner map returns false in Go :o
+// so this is safe even if it has never been called for this room.
+func (h *Hub) IsBanned(roomID, ip string) bool {
+	h.bannedMu.Lock()
+	defer h.bannedMu.Unlock()
+
+	return h.bannedIPs[roomID][ip]
+}
+
 func (h *Hub) RoomCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -531,8 +558,43 @@ func verifyAdminToken(token, storedHash string) bool {
 	}
 	hash := sha256.Sum256(tokenBytes)
 	hexHash := hex.EncodeToString(hash[:])
-	log.Printf("TOKEN: %s", token)
-	log.Printf("COMPUTED HASH: %s", hexHash)
-	log.Printf("STORED HASH:   %s", storedHash)
+	// log.Printf("TOKEN: %s", token)
+	// log.Printf("COMPUTED HASH: %s", hexHash)
+	// log.Printf("STORED HASH:   %s", storedHash)
 	return hexHash == storedHash
+}
+
+// This one send a message to a client's channel without panicking :$
+// if the channel is already closed.
+func (c *Client) safeSend(msg []byte) {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if !c.closed {
+		select {
+		case c.send <- msg:
+		default:
+			// full channel: close rather than block
+			c.closed = true
+			close(c.send)
+		}
+	}
+}
+
+// This one safely checks if the client's channel
+// has been closed.
+func (c *Client) isClosed() bool {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	return c.closed
+}
+
+// This one closes the client's send channel exactly once.
+// Calling it a second time is a no-op instead of panic.
+func (c *Client) safeClose() {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if !c.closed {
+		c.closed = true
+		close(c.send)
+	}
 }
