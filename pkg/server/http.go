@@ -56,11 +56,23 @@ func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler
 
 	//Serving T&Cs
 	mux.HandleFunc("/terms.html", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./pkg/public/terms.html")
+		data, err := fs.ReadFile(stripped, "terms.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(data)
 	})
 
 	mux.HandleFunc("/privacy.html", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./pkg/public/privacy.html")
+		data, err := fs.ReadFile(stripped, "privacy.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "type/html; charset=utf-8")
+		w.Write(data)
 	})
 
 	mux.HandleFunc("/api/invite", inviteCreateHandler(hub))
