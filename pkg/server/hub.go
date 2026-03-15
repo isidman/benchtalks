@@ -49,6 +49,15 @@ type PairingToken struct {
 	Used      bool
 }
 
+// This is a keyholder. Single use!
+// Server stores a blob it cannot read.
+type InviteToken struct {
+	EncryptedPayload string
+	RoomID           string
+	ExpiresAt        time.Time
+	Used             bool
+}
+
 // This is a hub. It has all rooms that have users in them. Kinda like a very
 // noisy and loud park.
 type Hub struct {
@@ -73,6 +82,10 @@ type Hub struct {
 	//in memory only - bans are cleared by restarting the server.
 	bannedIPs map[string]map[string]bool
 	bannedMu  sync.Mutex
+
+	//inviteTokens holds the invite tokens in a map. (duh)
+	inviteTokens map[string]InviteToken
+	inviteMu     sync.Mutex
 }
 
 // this functions is called once, when this whole thing starts, in main.go
@@ -93,6 +106,9 @@ func NewHub() *Hub {
 
 		// start empty, entries added by BanIP
 		bannedIPs: make(map[string]map[string]bool),
+
+		//starting empty, as always.
+		inviteTokens: make(map[string]InviteToken),
 	}
 }
 
@@ -529,6 +545,56 @@ func (h *Hub) IsBanned(roomID, ip string) bool {
 	defer h.bannedMu.Unlock()
 
 	return h.bannedIPs[roomID][ip]
+}
+
+// This one stores and "mystical" invite payload.
+// Can't see the raw token via this + when called by the
+// HTTP handler it has already generated and hashed the token.
+func (h *Hub) StoreInviteToken(tokenHash, encryptedPayload, roomID string, expiresAt time.Time) {
+	h.inviteMu.Lock()
+	defer h.inviteMu.Unlock()
+
+	h.inviteTokens[tokenHash] = InviteToken{
+		EncryptedPayload: encryptedPayload,
+		RoomID:           roomID,
+		ExpiresAt:        expiresAt,
+		Used:             false,
+	}
+}
+
+// This one is the mirror of the above. It looks up
+// the token via hash, validates it, marks it as used
+// and gives back the "mystical" payload and room ID.
+func (h *Hub) ClaimInviteToken(rawToken string) (encryptedPayload string, roomID string, ok bool) {
+	rawBytes, err := base64.RawURLEncoding.DecodeString(rawToken)
+	if err != nil {
+		return "", "", false
+	}
+
+	hash := sha256.Sum256(rawBytes)
+	hashHex := hex.EncodeToString(hash[:])
+
+	h.inviteMu.Lock()
+	defer h.inviteMu.Unlock()
+
+	record, exists := h.inviteTokens[hashHex]
+	if !exists {
+		return "", "", false
+	}
+
+	if record.Used {
+		return "", "", false
+	}
+
+	if time.Now().After(record.ExpiresAt) {
+		return "", "", false
+	}
+
+	//S i n g l e   U s e
+	record.Used = true
+	h.inviteTokens[hashHex] = record
+
+	return record.EncryptedPayload, record.RoomID, true
 }
 
 func (h *Hub) RoomCount() int {
