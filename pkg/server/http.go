@@ -1,7 +1,6 @@
 package server
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"embed"
 	"encoding/base64"
@@ -76,7 +75,7 @@ func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler
 	})
 
 	mux.HandleFunc("/api/invite", inviteCreateHandler(hub))
-	mux.HandleFunc("/join/", inviteClaimHandler(hub))
+	mux.HandleFunc("/api/invite/claim/", inviteClaimHandler(hub))
 
 	// Read index.html directly from the embedded FS and serve it ourselves.
 	// We bypass the file server entirely for this one file because Go's file
@@ -140,38 +139,36 @@ func inviteCreateHandler(hub *Hub) http.HandlerFunc {
 		var body struct {
 			RoomID           string `json:"roomId"`
 			EncryptedPayload string `json:"encryptedPayload"`
+			Token            string `json:"token"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		if body.RoomID == "" || body.EncryptedPayload == "" {
-			http.Error(w, "room id and payload are required", http.StatusInternalServerError)
+		if body.RoomID == "" || body.EncryptedPayload == "" || body.Token == "" {
+			http.Error(w, "room id, payload and token are required", http.StatusBadRequest)
 			return
 		}
 
-		rawBytes := make([]byte, 32)
-		if _, err := rand.Read(rawBytes); err != nil {
-			http.Error(w, "failed to generate token", http.StatusInternalServerError)
+		rawBytes, err := base64.RawURLEncoding.DecodeString(body.Token)
+		if err != nil || len(rawBytes) != 32 {
+			http.Error(w, "invalid token", http.StatusBadRequest)
 			return
 		}
-
-		//Encoded as base64url - going in the URL
-		rawToken := base64.RawURLEncoding.EncodeToString(rawBytes)
 
 		//Hashing it, this is what gets stored, raw token != stored
 		hash := sha256.Sum256(rawBytes)
 		hashHex := hex.EncodeToString(hash[:])
 
 		//Stored in the hub, expires in 24 hours
-		hub.StoreInviteToken(hashHex, body.EncryptedPayload, body.RoomID, time.Now().Add(24*time.Hour))
+		hub.StoreInviteToken(hashHex, body.EncryptedPayload, body.RoomID, time.Now().Add(5*time.Minute))
 
 		//raw token back to browser
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(struct {
-			Token string `json:"token"`
-		}{Token: rawToken})
+			OK bool `json:"ok"`
+		}{OK: true})
 	}
 }
 
@@ -187,7 +184,7 @@ func inviteClaimHandler(hub *Hub) http.HandlerFunc {
 			return
 		}
 
-		rawToken := strings.TrimPrefix(r.URL.Path, "/join/")
+		rawToken := strings.TrimPrefix(r.URL.Path, "/api/invite/claim/")
 		if rawToken == "" {
 			http.Error(w, "missing token", http.StatusBadRequest)
 			return
@@ -200,7 +197,9 @@ func inviteClaimHandler(hub *Hub) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(struct {
+		encoder := json.NewEncoder(w)
+		encoder.SetEscapeHTML(false)
+		encoder.Encode(struct {
 			EncryptedPayload string `json:"encryptedPayload"`
 			RoomID           string `json:"roomId"`
 		}{

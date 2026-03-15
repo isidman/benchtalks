@@ -38,7 +38,6 @@ const copyInviteBtn = document.getElementById('copyInviteBtn');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const newBenchBtn = document.getElementById('newBenchBtn');
 const deleteBenchBtn = document.getElementById('deleteBenchBtn');
-const inviteBtn = document.getElementById('inviteBtn');
 const oneTimeInviteBtn = document.getElementById('oneTimeInviteBtn');
 const makePublicBtn = document.getElementById('makePublicBtn');
 
@@ -53,16 +52,9 @@ document.addEventListener('click', () => {
     adminDropdown.classList.add('hidden');
 });
 
-//Now it's going to build the shareable URL from the current room's id and key
+//Now it's going to build the shareable URL from the current room's id and key. Only one time usage.
 //enc.key and room id are already in state + "buildRoomURL" (in crypto.js) builds the URL without admin token sh*t. 
 // S U C C E S S
-inviteBtn.addEventListener('click', () => {
-    adminDropdown.classList.add('hidden');
-    const shareableURL = buildRoomURL(roomId, encryptionKey);
-    inviteLinkInput.value = shareableURL;
-    inviteModal.classList.remove('hidden');
-});
-
 oneTimeInviteBtn.addEventListener('click', async () => {
     adminDropdown.classList.add('hidden');
     await generateOneTimeInvite();
@@ -617,19 +609,19 @@ async function sendImage(file) {
 //Server stores unreadable blobs only.
 async function generateOneTimeInvite() {
     const claimTokenBytes = nacl.randomBytes(32);
-
     const claimTokenBase64 = nacl.util.encodeBase64(claimTokenBytes);
     const claimToken = base64ToBase64Url(claimTokenBase64);
 
     const roomKeyBase64url = base64ToBase64Url(nacl.util.encodeBase64(encryptionKey));
-    const encryptedPayload = encryptMessage({key: roomKeyBase64url}, claimTokenBytes);
+    const encryptedPayload = encryptMessage({ key: roomKeyBase64url }, claimTokenBytes);
 
     const response = await fetch('/api/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json'},
         body: JSON.stringify({
             roomId: roomId,
-            encryptedPayload: encryptedPayload
+            encryptedPayload: encryptedPayload,
+            token: claimToken
         })
     });
 
@@ -640,7 +632,7 @@ async function generateOneTimeInvite() {
 
     const data = await response.json();
 
-    const inviteURL = window.location.origin + '/join/' + data.token;
+    const inviteURL = window.location.origin + '/join.html?token=' + claimToken;
 
     inviteLinkInput.value = inviteURL;
     inviteModal.classList.remove('hidden');

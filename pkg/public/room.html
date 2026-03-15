@@ -41,13 +41,9 @@
         <div id="adminMenu" class="hidden" style="position: relative;">
             <button id="adminMenuBtn" class="btn-small">Admin ▾</button>
             <div id="adminDropdown" class="admin-dropdown hidden">
-                <button class="dropdown-item" id="inviteBtn"
-                    title="Share this bench with others">
-                    👥 Invite people
-                </button>
                 <button class="dropdown-item" id="oneTimeInviteBtn"
-                    title="Generate a single-use invite link that expires after 24 hours">
-                    🔐 One-time invite link
+                    title="Generate a single-use invite link, expires in 5 minutes.">
+                    👥 Invite someone
                   </button>
                 <button class="dropdown-item" id="newBenchBtn"
                     title="Create a new bench and open it in a new tab">
@@ -108,7 +104,7 @@
       <div class="modal-box">
           <h3>Invite people</h3>
           <p style="font-size: 0.85rem; opacity: 0.7; margin: 8px 0 12px;">
-          Share this link. Anyone with it can join the bench.
+            Single-use link — expires in 5 minutes or on first click.
           </p>
           <div class="link-container">
               <input type="text" id="inviteLinkInput" readonly>

@@ -7,18 +7,26 @@
         <link rel="stylesheet" href="/assets/css/style.css">
     </head>
     <body>
-        <div id="joiningState">
+        <div id="joiningState" class="hidden">
             <p>Joining bench... </p>
         </div>
         <div id="errorState" class="hidden">
             <p id="errorText"></p>
         </div>
 
+        <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/tweetnacl-util@0.15.1/nacl-util.min.js"></script>
         <script src="/assets/js/crypto.js"></script>
+
         <script>
             async function claimInvite() {
+                document.getElementById('joiningState').classList.remove('hidden');
                 // Last seg of path = raw token
-                const rawToken = window.location.pathname.split('/join/')[1];
+                const rawToken = new URLSearchParams(window.location.search).get('token');
+
+                // debugging:
+                // console.log('rawToken from URL:', rawToken);
+                // console.log('rawToken length:', rawToken.length);
 
                 if (!rawToken) {
                     showError('Invalid invite link.');
@@ -28,7 +36,7 @@
                 try {
                     // Ask the server to redeem the token.
                     // Server marks it as used and gives back the encrypted payload + room id.
-                    const response = await fetch(window.location.pathname);
+                    const response = await fetch('/api/invite/claim/' + rawToken);
 
                     if (!response.ok) {
                         showError('This invite link is invalid, expired or has already been used.');
@@ -41,6 +49,10 @@
                     // Base64url > base 64 > bytes conversion (usable by NaCl)
                     const tokenBase64 = base64UrlToBase64(rawToken);
                     const tokenBytes = stringToKey(tokenBase64);
+
+                    // debugging:
+                    // console.log('claimTokenBytes used to encrypt would be different — checking payload decode');
+                    // console.log('encryptedPayload from server:', data.encryptedPayload);
 
                     if (!tokenBytes || tokenBytes.length !== 32) {
                         showError('Invalid invite link.');
