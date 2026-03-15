@@ -39,6 +39,7 @@ const closeModalBtn = document.getElementById('closeModalBtn');
 const newBenchBtn = document.getElementById('newBenchBtn');
 const deleteBenchBtn = document.getElementById('deleteBenchBtn');
 const inviteBtn = document.getElementById('inviteBtn');
+const oneTimeInviteBtn = document.getElementById('oneTimeInviteBtn');
 const makePublicBtn = document.getElementById('makePublicBtn');
 
 //togglin and boppin
@@ -60,6 +61,11 @@ inviteBtn.addEventListener('click', () => {
     const shareableURL = buildRoomURL(roomId, encryptionKey);
     inviteLinkInput.value = shareableURL;
     inviteModal.classList.remove('hidden');
+});
+
+oneTimeInviteBtn.addEventListener('click', async () => {
+    adminDropdown.classList.add('hidden');
+    await generateOneTimeInvite();
 });
 
 //copy *p l a i n* invite link
@@ -604,6 +610,40 @@ async function sendImage(file) {
         console.error('Error sending image:', error);
         addSystemMessage('❌ Failed to send image');
     }
+}
+
+//One-time link generator for the bench.
+//Claim token acts both as url token and decryption key.
+//Server stores unreadable blobs only.
+async function generateOneTimeInvite() {
+    const claimTokenBytes = nacl.randomBytes(32);
+
+    const claimTokenBase64 = nacl.util.encodeBase64(claimTokenBytes);
+    const claimToken = base64ToBase64Url(claimTokenBase64);
+
+    const roomKeyBase64url = base64ToBase64Url(nacl.util.encodeBase64(encryptionKey));
+    const encryptedPayload = encryptMessage({key: roomKeyBase64url}, claimTokenBytes);
+
+    const response = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            roomId: roomId,
+            encryptedPayload: encryptedPayload
+        })
+    });
+
+    if (!response.ok) {
+        alert('Failed to generate invite link. Please try again.');
+        return;
+    }
+
+    const data = await response.json();
+
+    const inviteURL = window.location.origin + '/join/' + data.token;
+
+    inviteLinkInput.value = inviteURL;
+    inviteModal.classList.remove('hidden');
 }
 
 //event listeners
