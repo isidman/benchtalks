@@ -1,10 +1,15 @@
 package server
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"embed"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -58,6 +63,9 @@ func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler
 		http.ServeFile(w, r, "./pkg/public/privacy.html")
 	})
 
+	mux.HandleFunc("/api/invite", inviteCreateHandler(hub))
+	mux.HandleFunc("/join/", inviteClaimHandler(hub))
+
 	// Read index.html directly from the embedded FS and serve it ourselves.
 	// We bypass the file server entirely for this one file because Go's file
 	// server
@@ -102,6 +110,91 @@ func healthHandler(hub *Hub, startTime time.Time) http.HandlerFunc {
 		}
 		json.NewEncoder(w).Encode(payload)
 
+	}
+}
+
+// POST /api/invite is handled by this one.
+// Browser sends the room ID and the "mystical" payload
+// (the key is encypted client-side). The handler here generates the raw token,
+// storing the hash & gives back the raw token to browser.
+func inviteCreateHandler(hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		//decoding the request body
+		var body struct {
+			RoomID           string `json:"roomId"`
+			EncryptedPayload string `json:"encryptedPayload"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if body.RoomID == "" || body.EncryptedPayload == "" {
+			http.Error(w, "room id and payload are required", http.StatusInternalServerError)
+			return
+		}
+
+		rawBytes := make([]byte, 32)
+		if _, err := rand.Read(rawBytes); err != nil {
+			http.Error(w, "failed to generate token", http.StatusInternalServerError)
+			return
+		}
+
+		//Encoded as base64url - going in the URL
+		rawToken := base64.RawURLEncoding.EncodeToString(rawBytes)
+
+		//Hashing it, this is what gets stored, raw token != stored
+		hash := sha256.Sum256(rawBytes)
+		hashHex := hex.EncodeToString(hash[:])
+
+		//Stored in the hub, expires in 24 hours
+		hub.StoreInviteToken(hashHex, body.EncryptedPayload, body.RoomID, time.Now().Add(24*time.Hour))
+
+		//raw token back to browser
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			Token string `json:"token"`
+		}{Token: rawToken})
+	}
+}
+
+// GET /join/{token} gets handled by this one.
+// grabs the token from the URL path, validates it via the hub,
+// returns the payload and roomID as JSON.
+// Browser uses the token from URL to decrypt on join.html
+// the payload, client-side and redirects to the room.
+func inviteClaimHandler(hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		rawToken := strings.TrimPrefix(r.URL.Path, "/join/")
+		if rawToken == "" {
+			http.Error(w, "missing token", http.StatusBadRequest)
+			return
+		}
+
+		encryptedPayload, roomID, ok := hub.ClaimInviteToken(rawToken)
+		if !ok {
+			http.Error(w, "invite link is invalid, expired or already used", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			EncryptedPayload string `json:"encryptedPayload"`
+			RoomID           string `json:"roomId"`
+		}{
+			EncryptedPayload: encryptedPayload,
+			RoomID:           roomID,
+		})
 	}
 }
 
