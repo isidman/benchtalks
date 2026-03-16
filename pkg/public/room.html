@@ -73,11 +73,12 @@
     
     <div id="messagesContainer" class="messages-container">
       <!-- where the messages should appear -->
-       <div id="typingIndicator" class="system-message" style="display: none;"></div>
     </div>
 
     
     <div class="input-container">
+      <div id="typingIndicator" class="typing-indicator hidden"></div>
+      <div class="input-row">
         <input
             type="file"
             id="imageInput"
@@ -91,6 +92,7 @@
         rows="1"
       ></textarea>
       <button id="sendBtn">Send</button>
+      </div>
     </div>
     <div style="text-align: center; font-size: 0.75rem; opacity: 0.4; padding: 8px 0;">
       <a href="/terms.html" style="color: white !important;" target="_blank">Terms</a> • 

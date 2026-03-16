@@ -11,6 +11,9 @@ let isPairingURL = false;
 let notificationSound = null;
 let soundEnabled = true;
 let userCount_n = 0;
+let typingTimer = null;
+const typingUsers = new Set();
+const TYPING_TIMEOUT_MS = 2000;
 
 //first loads the page, then the sound is enabled
 function initSound() {
@@ -270,6 +273,8 @@ function handleWebSocketMessage(data) {
             addSystemMessage('Someone left the bench');
             userCount_n = Math.max(0, userCount_n - 1);
             updateUserCount(userCount_n);
+            typingUsers.clear();
+            updateTypingIndicator();
             break;
 
         case 'welcome':
@@ -316,7 +321,15 @@ function handleWebSocketMessage(data) {
             addSystemMessage('🌐 This bench is now public — messages are visible across the park');
             break;
 
+        case 'typing':
+            typingUsers.add(data.payload);
+            updateTypingIndicator();
+            break;
         
+        case 'stop_typing':
+            typingUsers.delete(data.payload);
+            updateTypingIndicator();
+            break;
 
         case 'error':
             // Server sent us an error (e.g. invalid admin token).
@@ -552,6 +565,13 @@ function sendMessage() {
     // show our own message immediately — server doesn't echo back to sender
     addMessage(displayName, text, messageObj.timestamp);
 
+    clearTimeout(typingTimer);
+    ws.send(JSON.stringify({
+        type: 'stop_typing',
+        roomId: roomId,
+        payload: displayName
+    }));
+
     // clear input
     messageInput.value = '';
     messageInput.style.height = 'auto';
@@ -677,6 +697,24 @@ messageInput.addEventListener('keydown', (e) => {
 messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
     messageInput.style.height = messageInput.scrollHeight + 'px';
+
+    // Typing indicator
+    if (!isConnected) return;
+
+    ws.send(JSON.stringify({
+        type: 'typing',
+        roomId: roomId,
+        payload: displayName
+    }));
+    
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+        ws.send(JSON.stringify({
+            type: 'stop_typing',
+            roomId: roomId,
+            payload: displayName
+        }));
+    }, TYPING_TIMEOUT_MS);
 });
 
 attachBtn.addEventListener('click', () => {
@@ -716,5 +754,29 @@ document.getElementById('pairBenchBtn').addEventListener('click', () => {
         adminHash: claimerBenchID.trim(),
     }))
 })
+
+//Typing indicator text is formatted, 
+// based on the number of people typing.
+function updateTypingIndicator() {
+    const indicator = document.getElementById('typingIndicator');
+    const names = [...typingUsers];
+
+    if (names.length === 0) {
+        indicator.textContent = '';
+        indicator.classList.add('hidden');
+    } else if (names.length === 1) {
+        indicator.textContent = `${names[0]} is typing...`;
+        indicator.classList.remove('hidden');
+    } else if (names.length === 2) {
+        indicator.textContent = `${names[0]} and ${names[1]} are typing...`;
+        indicator.classList.remove('hidden');
+    } else if (names.length === 3) {
+        indicator.textContent = `${names[0]},${names[1]} and ${names[2]} are typing...`;
+        indicator.classList.remove('hidden');
+    } else {
+        indicator.textContent = 'Several people are typing...';
+        indicator.classList.remove('hidden');
+    }
+}
 
 init();
