@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — BenchTalks</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 2rem 1rem;
+            line-height: 1.7;
+        }
+
+        @media (prefers-color-scheme: light) {
+            body { background: #f0f0f0; color: #1a1a1a; }
+            a { color: #1a1a1a; }
+            .callout { border-left-color: #999; background: #e0e0e0; }
+            hr { border-top-color: #ccc; }
+            table th { background: #333; color: #f0f0f0; }
+            table td { border-color: #ccc; }
+            table tr:nth-child(even) td { background: #e8e8e8; }
+        }
+
+        .page {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .site-header {
+            margin-bottom: 2.5rem;
+        }
+
+        .site-header a {
+            text-decoration: none;
+            color: inherit;
+            font-size: 1.1rem;
+            opacity: 0.7;
+        }
+
+        .site-header a:hover { opacity: 1; }
+
+        h1 {
+            font-size: 1.8rem;
+            margin: 0.5rem 0 0.25rem;
+        }
+
+        .meta {
+            font-size: 0.8rem;
+            opacity: 0.5;
+            margin-top: 0.25rem;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #333;
+            margin: 2rem 0;
+        }
+
+        .callout {
+            border-left: 3px solid #555;
+            background: #222;
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            opacity: 0.85;
+        }
+
+        .callout.warning {
+            border-left-color: #888;
+        }
+
+        h2 {
+            font-size: 1rem;
+            margin: 2rem 0 0.75rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        p { margin-bottom: 0.9rem; font-size: 0.92rem; }
+
+        ul {
+            padding-left: 1.5rem;
+            margin-bottom: 0.9rem;
+        }
+
+        ul li {
+            font-size: 0.92rem;
+            margin-bottom: 0.35rem;
+        }
+
+        a { color: #e0e0e0; }
+        a:hover { opacity: 0.7; }
+
+        .contact {
+            font-size: 1rem;
+            margin: 0.5rem 0 1rem;
+        }
+
+        /* Data table */
+        .table-wrap {
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        table th {
+            background: #2a2a2a;
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #444;
+            white-space: nowrap;
+        }
+
+        table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #2a2a2a;
+            vertical-align: top;
+        }
+
+        table tr:nth-child(even) td {
+            background: #1f1f1f;
+        }
+
+        footer {
+            margin-top: 3rem;
+            font-size: 0.78rem;
+            opacity: 0.4;
+            text-align: center;
+        }
+
+        footer a { color: inherit; }
+    </style>
+</head>
+    <script>
+    // Email is base64-encoded to avoid scraper harvesting.
+    // atob() decodes it client-side — any human visitor with JS enabled sees it fine.
+    const e = atob('YjNuY2h0NGxrc0Bwcm90b25tYWlsLmNvbQ==');
+    document.querySelectorAll('.contact-email').forEach(el => {
+        if (el.tagName === 'A') {
+            el.href = 'mailto:' + e;
+            el.textContent = e;
+        } else {
+            el.textContent = e;
+        }
+    });
+</script>
+<body>
+    <div class="page">
+
+        <div class="site-header">
+            <a href="/">← BenchTalks</a>
+            <h1>Privacy Policy</h1>
+            <p class="meta">Effective date: March 2026 · benchtalks.chat</p>
+        </div>
+
+        <div class="callout">
+            BenchTalks is built around a simple principle: collect as little as possible, retain as little as possible, and never be able to read your messages. This policy explains exactly what that means in practice.
+        </div>
+
+        <hr>
+
+        <h2>1. Who Am I</h2>
+        <p>BenchTalks (benchtalks.chat) is an open-source end-to-end encrypted ephemeral chat application operated by an individual developer. It is a personal project, not a commercial entity.</p>
+        <p>Contact: <strong><span class="contact-email"></span></strong></p>
+
+        <hr>
+
+        <h2>2. The Short Version</h2>
+        <p>We do not read your messages. We cannot — they are end-to-end encrypted and the decryption keys never leave your browser. We do not know who you are. We do not track you. We do not sell anything.</p>
+
+        <hr>
+
+        <h2>3. What Data We Hold</h2>
+        <p>This is a complete picture of every category of data associated with your use of BenchTalks:</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Why collected</th>
+                        <th>How long kept</th>
+                        <th>Accessible to us?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Room ID</td>
+                        <td>To route messages between participants</td>
+                        <td>Until manually deleted by admin, or 30 days of inactivity — whichever comes first</td>
+                        <td>Yes (random identifier, no personal link)</td>
+                    </tr>
+                    <tr>
+                        <td>Room creation timestamp</td>
+                        <td>To enforce the 30-day expiry</td>
+                        <td>Until room is deleted (manual or automatic)</td>
+                        <td>Yes</td>
+                    </tr>
+                    <tr>
+                        <td>Encrypted file blobs</td>
+                        <td>To allow image sharing between participants</td>
+                        <td>Until room is deleted — immediately on admin deletion</td>
+                        <td>No — we hold the blob but cannot decrypt it</td>
+                    </tr>
+                    <tr>
+                        <td>File metadata (name, size, MIME type)</td>
+                        <td>To serve the file to the correct client</td>
+                        <td>Until room is deleted — immediately on admin deletion</td>
+                        <td>Yes — metadata only, not content</td>
+                    </tr>
+                    <tr>
+                        <td>IP address</td>
+                        <td>WebSocket connection routing</td>
+                        <td>Duration of active connection only — never written to disk or logs</td>
+                        <td>No — held transiently in server RAM only</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p>That is the complete list. There are no analytics trackers, no cookies, no advertising pixels, no third-party scripts, and no account system of any kind.</p>
+
+        <hr>
+
+        <h2>4. What We Never Collect</h2>
+        <ul>
+            <li>Your name, email address, phone number, or any identifying information</li>
+            <li>The content of your messages — encrypted client-side before transmission</li>
+            <li>Your encryption keys — generated in your browser and never sent to the server</li>
+            <li>Browsing history or behaviour on other sites</li>
+            <li>Device fingerprints</li>
+            <li>Location data</li>
+            <li>Cookies or persistent local storage</li>
+        </ul>
+
+        <hr>
+
+        <h2>5. How End-to-End Encryption Protects You</h2>
+        <p>When you create a room, your browser generates a random 256-bit encryption key. That key is stored only in the URL fragment (the part after the <code>#</code> symbol). URL fragments are never sent to the server by your browser — this is a web standard, not a promise we are making.</p>
+        <p>Every message and image you share is encrypted with that key before it leaves your device. The server receives and forwards only the encrypted output. Even if our server were compromised, an attacker would obtain encrypted blobs with no way to decrypt them.</p>
+        <p>The only people who can read your messages are the people who have the room URL — specifically, the part after the <code>#</code> symbol.</p>
+        <div class="callout warning" style="margin-top: 0.9rem;">
+            ⚠️ Do not share your room URL in a way that could be intercepted (e.g. by pasting it into an unencrypted channel). The URL contains the key.
+        </div>
+
+        <hr>
+
+        <h2>6. IP Addresses</h2>
+        <p>Your IP address is processed by our server as a side-effect of establishing a WebSocket connection. This is unavoidable at the TCP/IP level — any server you connect to receives your IP address.</p>
+        <p>We handle IP addresses as follows:</p>
+        <ul>
+            <li>Your IP is held in server RAM for the duration of your active connection</li>
+            <li>It is used only for per-room ban enforcement when a room admin removes a participant</li>
+            <li>It is never written to any log file</li>
+            <li>It is never written to the database</li>
+            <li>It is never included in any data transmitted to other participants</li>
+            <li>It is discarded from RAM when your connection ends</li>
+        </ul>
+        <p>The room admin sees only your display name. They never see your IP address. The ban mechanism works by having the admin send your session ID to the server, which looks up your IP internally without disclosing it.</p>
+
+        <hr>
+
+        <h2>7. Data Retention</h2>
+        <p>There are two ways a room and its associated data (encrypted file blobs, file metadata, room record) are deleted:</p>
+        <ul>
+            <li><strong>Manual deletion by the room admin</strong> — when the admin uses their admin link to delete a room, all associated data is deleted immediately and permanently from the server.</li>
+            <li><strong>Automatic expiry</strong> — if a room is abandoned without being explicitly deleted, it is automatically removed after <strong>30 days of inactivity</strong>. Inactivity means no active WebSocket connections to that room during that period.</li>
+        </ul>
+        <p>In both cases, deletion is complete: the room record, all encrypted file blobs, and all file metadata are removed together.</p>
+        <p>Messages are not stored server-side at all. They exist only in the RAM of connected participants' browsers during an active session. When you close the tab, the messages are gone regardless of what happens to the room.</p>
+        <p>There is no account to delete because there is no account. There is nothing to export because we hold no personal data tied to you.</p>
+
+        <hr>
+
+        <h2>8. Third Parties</h2>
+        <p>BenchTalks does not share data with any third party for commercial, advertising, or analytical purposes.</p>
+        <p>The service is hosted on a Hetzner VPS (Germany). Hetzner processes network traffic as part of providing infrastructure — this is covered by Hetzner's own privacy policy. We selected Hetzner partly because of its European data centre location and GDPR compliance posture.</p>
+        <p>There are no other third-party services, SDKs, or integrations that process your data.</p>
+
+        <hr>
+
+        <h2>9. Legal Requests and Law Enforcement</h2>
+        <p>If we receive a lawful request from a law enforcement agency, we will cooperate to the extent technically possible and legally required.</p>
+        <p>Due to the architecture of BenchTalks, what we are able to provide is limited to:</p>
+        <ul>
+            <li>Room creation and last-activity timestamps</li>
+            <li>Encrypted file blobs (which we cannot decrypt and which are meaningless without the key)</li>
+            <li>File metadata: filename, size, MIME type</li>
+        </ul>
+        <p>We cannot provide message content (never stored), decryption keys (never held by the server), user identities (no accounts), or historical IP addresses (never logged).</p>
+        <p>We will notify you of any legal request unless prohibited from doing so by law.</p>
+
+        <hr>
+
+        <h2>10. Your Rights</h2>
+        <p>Depending on your jurisdiction, you may have rights under applicable privacy law (including GDPR if you are in the EU or UK):</p>
+        <ul>
+            <li><strong>Right of access</strong> — to know what data we hold about you</li>
+            <li><strong>Right to erasure</strong> — to request deletion of your data</li>
+            <li><strong>Right to restrict processing</strong> — to object to how we use your data</li>
+            <li><strong>Right to data portability</strong> — to receive your data in a portable format</li>
+        </ul>
+        <p>In practice, because we hold no personal data linked to your identity, most of these rights are satisfied by the architecture itself. We have no way of connecting a data subject request to specific server-side data, because we hold no identifying information.</p>
+        <p>If you have a specific concern or request, contact us at <strong><span class="contact-email"></span></strong> and we will respond within 30 days.</p>
+
+        <hr>
+
+        <h2>11. Security</h2>
+        <p>We take reasonable technical measures to protect the service and the limited data we hold. These include:</p>
+        <ul>
+            <li>End-to-end encryption for all message and file content</li>
+            <li>HTTPS for all connections (TLS in transit)</li>
+            <li>No plaintext storage of sensitive data</li>
+            <li>IP addresses held only in RAM, never written to disk or logs</li>
+            <li>Automatic data expiry (30-day room deletion)</li>
+        </ul>
+        <p>No system is perfectly secure. If you discover a security vulnerability, please disclose it responsibly by emailing <strong><span class="contact-email"></span></strong> before publishing.</p>
+
+        <hr>
+
+        <h2>12. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy to reflect changes in the service or applicable law. The effective date at the top of this document will be updated when changes are made.</p>
+        <p>Continued use of the service after an update constitutes acceptance of the revised policy.</p>
+
+        <hr>
+
+        <h2>13. Contact</h2>
+        <p>For any privacy-related questions, data requests, or concerns:</p>
+        <p class="contact"><strong><span class="contact-email"></span></strong></p>
+
+        <footer>
+            <p>© March 2026 BenchTalks. Released under AGPL-3.0. · <a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a></p>
+        </footer>
+
+    </div>
+</body>
+</html>

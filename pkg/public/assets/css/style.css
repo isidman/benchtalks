@@ -191,6 +191,10 @@ header h1 {
     }
 }
 
+.hidden {
+    display:none;
+}
+
 .hint {
     font-size: 0.8rem;
     margin-top: 8px;

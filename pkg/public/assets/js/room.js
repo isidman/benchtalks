@@ -38,7 +38,7 @@ const copyInviteBtn = document.getElementById('copyInviteBtn');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const newBenchBtn = document.getElementById('newBenchBtn');
 const deleteBenchBtn = document.getElementById('deleteBenchBtn');
-const inviteBtn = document.getElementById('inviteBtn');
+const oneTimeInviteBtn = document.getElementById('oneTimeInviteBtn');
 const makePublicBtn = document.getElementById('makePublicBtn');
 
 //togglin and boppin
@@ -52,14 +52,12 @@ document.addEventListener('click', () => {
     adminDropdown.classList.add('hidden');
 });
 
-//Now it's going to build the shareable URL from the current room's id and key
+//Now it's going to build the shareable URL from the current room's id and key. Only one time usage.
 //enc.key and room id are already in state + "buildRoomURL" (in crypto.js) builds the URL without admin token sh*t. 
 // S U C C E S S
-inviteBtn.addEventListener('click', () => {
+oneTimeInviteBtn.addEventListener('click', async () => {
     adminDropdown.classList.add('hidden');
-    const shareableURL = buildRoomURL(roomId, encryptionKey);
-    inviteLinkInput.value = shareableURL;
-    inviteModal.classList.remove('hidden');
+    await generateOneTimeInvite();
 });
 
 //copy *p l a i n* invite link
@@ -223,11 +221,7 @@ async function connectWebSocket() {
             adminHash: adminHash,
             payload: displayName  // send username as payload
         }));
-
-        // show the chat interface immediately after sending join
-        // the server doesn't echo back to the sender so we don't
-        // wait for a confirmation — connection is already established
-        handleSelfJoined();
+        
     };
 
     ws.onmessage = (event) => {
@@ -239,9 +233,15 @@ async function connectWebSocket() {
         }
     };
 
+    // Only show the connection error if we haven't already shown a
+    // more specific one (banned, kicked). The socket closing after
+    // a ban triggers onerror too — we don't want it to overwrite
+    // the ban message the user just received.
     ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        showError('Connection error. Please check your internet connection.'); //need to work on error handling
+        if (errorState.classList.contains('hidden')){
+            showError('Connection error. Please check your internet connection.'); //need to work on error handling
+        }
     };
 
     ws.onclose = () => {
@@ -258,15 +258,10 @@ function handleWebSocketMessage(data) {
 
     switch (data.type) {
         case 'join':
-            // someone joined — could be us (first join) or someone else
-            if (!isConnected) {
-                // this is our own join confirmation
-                handleSelfJoined();
-            } else {
-                userCount_n++;// someone else joined
-                updateUserCount(userCount_n);
-                addSystemMessage('Someone joined the bench');
-            }
+            // someone else joined after us
+            userCount_n++;
+            updateUserCount(userCount_n);
+            addSystemMessage('Someone joined the bench');
             break;
 
         case 'leave':
@@ -277,6 +272,8 @@ function handleWebSocketMessage(data) {
             break;
 
         case 'welcome':
+            // this is our own join confirmation
+                handleSelfJoined();
             // Server gives info on how many people are in the room at the moment.
             // Better than counting join/leave events.
             userCount_n = parseInt(data.payload);
@@ -445,6 +442,7 @@ function addSystemMessage(text) {
 }
 
 function addMessage(sender, text, timestamp, senderId) {
+    console.log('addMessage called:', sender, senderId, 'isAdmin:', !!adminToken);
     const div = document.createElement('div');
     div.className = 'message';
 
@@ -604,6 +602,40 @@ async function sendImage(file) {
         console.error('Error sending image:', error);
         addSystemMessage('❌ Failed to send image');
     }
+}
+
+//One-time link generator for the bench.
+//Claim token acts both as url token and decryption key.
+//Server stores unreadable blobs only.
+async function generateOneTimeInvite() {
+    const claimTokenBytes = nacl.randomBytes(32);
+    const claimTokenBase64 = nacl.util.encodeBase64(claimTokenBytes);
+    const claimToken = base64ToBase64Url(claimTokenBase64);
+
+    const roomKeyBase64url = base64ToBase64Url(nacl.util.encodeBase64(encryptionKey));
+    const encryptedPayload = encryptMessage({ key: roomKeyBase64url }, claimTokenBytes);
+
+    const response = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            roomId: roomId,
+            encryptedPayload: encryptedPayload,
+            token: claimToken
+        })
+    });
+
+    if (!response.ok) {
+        alert('Failed to generate invite link. Please try again.');
+        return;
+    }
+
+    const data = await response.json();
+
+    const inviteURL = window.location.origin + '/join.html?token=' + claimToken;
+
+    inviteLinkInput.value = inviteURL;
+    inviteModal.classList.remove('hidden');
 }
 
 //event listeners

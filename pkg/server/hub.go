@@ -24,6 +24,8 @@ type Client struct {
 	send chan []byte
 	ip   string // Only used for ban checks.
 	// Not getting logged, exists only in RAM.
+	closed  bool       // True once send channel has been closed.
+	closeMu sync.Mutex //guards closed flag.
 }
 
 // This is a room/bench.
@@ -45,6 +47,15 @@ type PairingToken struct {
 	ClaimerID string
 	ExpiresAt time.Time
 	Used      bool
+}
+
+// This is a keyholder. Single use!
+// Server stores a blob it cannot read.
+type InviteToken struct {
+	EncryptedPayload string
+	RoomID           string
+	ExpiresAt        time.Time
+	Used             bool
 }
 
 // This is a hub. It has all rooms that have users in them. Kinda like a very
@@ -71,6 +82,10 @@ type Hub struct {
 	//in memory only - bans are cleared by restarting the server.
 	bannedIPs map[string]map[string]bool
 	bannedMu  sync.Mutex
+
+	//inviteTokens holds the invite tokens in a map. (duh)
+	inviteTokens map[string]InviteToken
+	inviteMu     sync.Mutex
 }
 
 // this functions is called once, when this whole thing starts, in main.go
@@ -91,6 +106,9 @@ func NewHub() *Hub {
 
 		// start empty, entries added by BanIP
 		bannedIPs: make(map[string]map[string]bool),
+
+		//starting empty, as always.
+		inviteTokens: make(map[string]InviteToken),
 	}
 }
 
@@ -146,8 +164,9 @@ func (h *Hub) JoinRoom(roomID, adminHash string, client *Client) {
 	// A "banned" message is sent first so client can present reason,
 	// then close the channel. After that, writePump will flush and disconnect cleanly.
 	if h.IsBanned(roomID, client.ip) {
-		client.send <- buildOutgoing("banned", "You have been banned from this room", client.id)
-		close(client.send)
+		client.safeSend(buildOutgoing("banned", "You have been banned from this room", client.id))
+		time.Sleep(100 * time.Millisecond) //give writePump time to flush before closing
+		client.safeClose()
 		return
 	}
 	// locking the room, this time, because it writes the client map
@@ -199,17 +218,11 @@ func (h *Hub) Broadcast(roomID string, senderID string, message []byte) {
 		if id == senderID {
 			continue //no going back to sender
 		}
-
+		client.safeSend(message)
 		// This part allows kind-of asynchronous reading of messages on "send"
 		// channel of each client.
 		// And the rest of the clients don't need to wait for everyone to read
 		// the message broadcasted.
-		select {
-		case client.send <- message:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
 	}
 
 	// Two conditions: public room and live relay. That's all it takes to
@@ -248,13 +261,8 @@ func (h *Hub) BroadcastFromPark(roomID string, senderBenchID string, payload []b
 	room.mu.Lock()
 	defer room.mu.Unlock()
 
-	for id, client := range room.clients {
-		select {
-		case client.send <- payload:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
+	for _, client := range room.clients {
+		client.safeSend(payload)
 	}
 	// No "relay.Publish" loop prevention
 }
@@ -272,13 +280,8 @@ func (h *Hub) BroadcastToRoom(roomID string, message []byte) {
 	room.mu.Lock()
 	defer room.mu.Unlock()
 
-	for id, client := range room.clients {
-		select {
-		case client.send <- message:
-		default:
-			close(client.send)
-			delete(room.clients, id)
-		}
+	for _, client := range room.clients {
+		client.safeSend(message)
 	}
 }
 
@@ -335,10 +338,7 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 	deletedMsg := buildOutgoing("deleted", "", "")
 	room.mu.Lock()
 	for _, client := range room.clients {
-		select {
-		case client.send <- deletedMsg:
-		default:
-		}
+		client.safeSend(deletedMsg)
 	}
 	room.mu.Unlock()
 
@@ -348,7 +348,7 @@ func (h *Hub) DeleteRoom(roomID string, adminToken string) bool {
 	// now close all channels — writePump catches this and disconnects
 	room.mu.Lock()
 	for _, client := range room.clients {
-		close(client.send)
+		client.safeClose()
 	}
 	room.mu.Unlock()
 
@@ -547,6 +547,56 @@ func (h *Hub) IsBanned(roomID, ip string) bool {
 	return h.bannedIPs[roomID][ip]
 }
 
+// This one stores and "mystical" invite payload.
+// Can't see the raw token via this + when called by the
+// HTTP handler it has already generated and hashed the token.
+func (h *Hub) StoreInviteToken(tokenHash, encryptedPayload, roomID string, expiresAt time.Time) {
+	h.inviteMu.Lock()
+	defer h.inviteMu.Unlock()
+
+	h.inviteTokens[tokenHash] = InviteToken{
+		EncryptedPayload: encryptedPayload,
+		RoomID:           roomID,
+		ExpiresAt:        expiresAt,
+		Used:             false,
+	}
+}
+
+// This one is the mirror of the above. It looks up
+// the token via hash, validates it, marks it as used
+// and gives back the "mystical" payload and room ID.
+func (h *Hub) ClaimInviteToken(rawToken string) (encryptedPayload string, roomID string, ok bool) {
+	rawBytes, err := base64.RawURLEncoding.DecodeString(rawToken)
+	if err != nil {
+		return "", "", false
+	}
+
+	hash := sha256.Sum256(rawBytes)
+	hashHex := hex.EncodeToString(hash[:])
+
+	h.inviteMu.Lock()
+	defer h.inviteMu.Unlock()
+
+	record, exists := h.inviteTokens[hashHex]
+	if !exists {
+		return "", "", false
+	}
+
+	if record.Used {
+		return "", "", false
+	}
+
+	if time.Now().After(record.ExpiresAt) {
+		return "", "", false
+	}
+
+	//S i n g l e   U s e
+	record.Used = true
+	h.inviteTokens[hashHex] = record
+
+	return record.EncryptedPayload, record.RoomID, true
+}
+
 func (h *Hub) RoomCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -574,8 +624,43 @@ func verifyAdminToken(token, storedHash string) bool {
 	}
 	hash := sha256.Sum256(tokenBytes)
 	hexHash := hex.EncodeToString(hash[:])
-	log.Printf("TOKEN: %s", token)
-	log.Printf("COMPUTED HASH: %s", hexHash)
-	log.Printf("STORED HASH:   %s", storedHash)
+	// log.Printf("TOKEN: %s", token)
+	// log.Printf("COMPUTED HASH: %s", hexHash)
+	// log.Printf("STORED HASH:   %s", storedHash)
 	return hexHash == storedHash
+}
+
+// This one send a message to a client's channel without panicking :$
+// if the channel is already closed.
+func (c *Client) safeSend(msg []byte) {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if !c.closed {
+		select {
+		case c.send <- msg:
+		default:
+			// full channel: close rather than block
+			c.closed = true
+			close(c.send)
+		}
+	}
+}
+
+// This one safely checks if the client's channel
+// has been closed.
+func (c *Client) isClosed() bool {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	return c.closed
+}
+
+// This one closes the client's send channel exactly once.
+// Calling it a second time is a no-op instead of panic.
+func (c *Client) safeClose() {
+	c.closeMu.Lock()
+	defer c.closeMu.Unlock()
+	if !c.closed {
+		c.closed = true
+		close(c.send)
+	}
 }

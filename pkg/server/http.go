@@ -1,10 +1,14 @@
 package server
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -48,6 +52,30 @@ func NewRouter(hub *Hub, staticFiles embed.FS, startTime time.Time) http.Handler
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		ServeWS(hub, w, r)
 	})
+
+	//Serving T&Cs
+	mux.HandleFunc("/terms.html", func(w http.ResponseWriter, r *http.Request) {
+		data, err := fs.ReadFile(stripped, "terms.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(data)
+	})
+
+	mux.HandleFunc("/privacy.html", func(w http.ResponseWriter, r *http.Request) {
+		data, err := fs.ReadFile(stripped, "privacy.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "type/html; charset=utf-8")
+		w.Write(data)
+	})
+
+	mux.HandleFunc("/api/invite", inviteCreateHandler(hub))
+	mux.HandleFunc("/api/invite/claim/", inviteClaimHandler(hub))
 
 	// Read index.html directly from the embedded FS and serve it ourselves.
 	// We bypass the file server entirely for this one file because Go's file
@@ -93,6 +121,91 @@ func healthHandler(hub *Hub, startTime time.Time) http.HandlerFunc {
 		}
 		json.NewEncoder(w).Encode(payload)
 
+	}
+}
+
+// POST /api/invite is handled by this one.
+// Browser sends the room ID and the "mystical" payload
+// (the key is encypted client-side). The handler here generates the raw token,
+// storing the hash & gives back the raw token to browser.
+func inviteCreateHandler(hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		//decoding the request body
+		var body struct {
+			RoomID           string `json:"roomId"`
+			EncryptedPayload string `json:"encryptedPayload"`
+			Token            string `json:"token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if body.RoomID == "" || body.EncryptedPayload == "" || body.Token == "" {
+			http.Error(w, "room id, payload and token are required", http.StatusBadRequest)
+			return
+		}
+
+		rawBytes, err := base64.RawURLEncoding.DecodeString(body.Token)
+		if err != nil || len(rawBytes) != 32 {
+			http.Error(w, "invalid token", http.StatusBadRequest)
+			return
+		}
+
+		//Hashing it, this is what gets stored, raw token != stored
+		hash := sha256.Sum256(rawBytes)
+		hashHex := hex.EncodeToString(hash[:])
+
+		//Stored in the hub, expires in 24 hours
+		hub.StoreInviteToken(hashHex, body.EncryptedPayload, body.RoomID, time.Now().Add(5*time.Minute))
+
+		//raw token back to browser
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			OK bool `json:"ok"`
+		}{OK: true})
+	}
+}
+
+// GET /join/{token} gets handled by this one.
+// grabs the token from the URL path, validates it via the hub,
+// returns the payload and roomID as JSON.
+// Browser uses the token from URL to decrypt on join.html
+// the payload, client-side and redirects to the room.
+func inviteClaimHandler(hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		rawToken := strings.TrimPrefix(r.URL.Path, "/api/invite/claim/")
+		if rawToken == "" {
+			http.Error(w, "missing token", http.StatusBadRequest)
+			return
+		}
+
+		encryptedPayload, roomID, ok := hub.ClaimInviteToken(rawToken)
+		if !ok {
+			http.Error(w, "invite link is invalid, expired or already used", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		encoder := json.NewEncoder(w)
+		encoder.SetEscapeHTML(false)
+		encoder.Encode(struct {
+			EncryptedPayload string `json:"encryptedPayload"`
+			RoomID           string `json:"roomId"`
+		}{
+			EncryptedPayload: encryptedPayload,
+			RoomID:           roomID,
+		})
 	}
 }
 
