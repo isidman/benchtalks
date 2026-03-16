@@ -11,6 +11,17 @@ let currentRoomId = null;
 let currentShareableURL = null;
 let currentAdminURL = null;
 
+//Throttle - max 2 calls/sec
+let lastCreateTime = 0;
+const CREATE_THROTTLE_MS = 500;
+
+function isThrottled() {
+    const now = Date.now();
+    if (now - lastCreateTime < CREATE_THROTTLE_MS) return true;
+    lastCreateTime = now;
+    return false;
+}
+
 //ui helpers
 function showSection(section) {
     //hide all sections
@@ -105,7 +116,10 @@ async function copyToClipboard(text, button) {
 }
 
 //event listeners
-createRoomBtn.addEventListener('click',createRoom);
+createRoomBtn.addEventListener('click', () => {
+    if (isThrottled()) return;
+    createRoom();
+});
 
 retryBtn.addEventListener('click', () => {
     showSection(createSection);

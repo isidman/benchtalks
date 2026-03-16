@@ -86,6 +86,7 @@ inviteModal.addEventListener('click', (e) => {
 
 //this creates a new bench and opens it in a new tab
 newBenchBtn.addEventListener('click', async () => {
+    if (isThrottled()) return;
     adminDropdown.classList.add('hidden');
 
     //generate everything fresh - same as index.html "createRoom"
@@ -638,6 +639,16 @@ async function generateOneTimeInvite() {
     inviteModal.classList.remove('hidden');
 }
 
+let lastCreateTime = 0;
+const CREATE_THROTTLE_MS = 500;
+
+function isThrottled(){
+    const now = Date.now();
+    if (now - lastCreateTime < CREATE_THROTTLE_MS) return true;
+    lastCreateTime = now;
+    return false;
+}
+
 //event listeners
 
 sendBtn.addEventListener('click', sendMessage);
@@ -678,6 +689,14 @@ imageInput.addEventListener('change', (e) => {
         sendImage(file);
     }
     imageInput.value = '';
+});
+
+let lastHomeClick = 0;
+document.getElementById('homeBtn').addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastHomeClick < 300) return;
+    lastHomeClick = now;
+    window.open('/','_blank');
 });
 
 document.getElementById('pairBenchBtn').addEventListener('click', () => {
