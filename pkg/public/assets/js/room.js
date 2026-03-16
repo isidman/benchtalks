@@ -469,7 +469,7 @@ function addMessage(sender, text, timestamp, senderId) {
             <div class="message-sender">${escapeHtml(sender)}
             ${adminToken && senderId ? '<button class="btn-ban" title="Ban this user">🚫</button>' : ''}
             </div>
-            <div class="message-content">${escapeHtml(text)}</div>
+            <div class="message-content">${applyEmotes(escapeHtml(text))}</div>
             <div class="message-time">${time}</div>
         `;
         //Only the bench admin sees the ban button, and only on other people's messages.
