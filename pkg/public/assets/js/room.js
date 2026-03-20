@@ -11,6 +11,9 @@ let isPairingURL = false;
 let notificationSound = null;
 let soundEnabled = true;
 let userCount_n = 0;
+let typingTimer = null;
+const typingUsers = new Set();
+const TYPING_TIMEOUT_MS = 2000;
 
 //first loads the page, then the sound is enabled
 function initSound() {
@@ -38,7 +41,7 @@ const copyInviteBtn = document.getElementById('copyInviteBtn');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const newBenchBtn = document.getElementById('newBenchBtn');
 const deleteBenchBtn = document.getElementById('deleteBenchBtn');
-const inviteBtn = document.getElementById('inviteBtn');
+const oneTimeInviteBtn = document.getElementById('oneTimeInviteBtn');
 const makePublicBtn = document.getElementById('makePublicBtn');
 
 //togglin and boppin
@@ -52,14 +55,12 @@ document.addEventListener('click', () => {
     adminDropdown.classList.add('hidden');
 });
 
-//Now it's going to build the shareable URL from the current room's id and key
+//Now it's going to build the shareable URL from the current room's id and key. Only one time usage.
 //enc.key and room id are already in state + "buildRoomURL" (in crypto.js) builds the URL without admin token sh*t. 
 // S U C C E S S
-inviteBtn.addEventListener('click', () => {
+oneTimeInviteBtn.addEventListener('click', async () => {
     adminDropdown.classList.add('hidden');
-    const shareableURL = buildRoomURL(roomId, encryptionKey);
-    inviteLinkInput.value = shareableURL;
-    inviteModal.classList.remove('hidden');
+    await generateOneTimeInvite();
 });
 
 //copy *p l a i n* invite link
@@ -88,6 +89,7 @@ inviteModal.addEventListener('click', (e) => {
 
 //this creates a new bench and opens it in a new tab
 newBenchBtn.addEventListener('click', async () => {
+    if (isThrottled()) return;
     adminDropdown.classList.add('hidden');
 
     //generate everything fresh - same as index.html "createRoom"
@@ -271,6 +273,8 @@ function handleWebSocketMessage(data) {
             addSystemMessage('Someone left the bench');
             userCount_n = Math.max(0, userCount_n - 1);
             updateUserCount(userCount_n);
+            typingUsers.clear();
+            updateTypingIndicator();
             break;
 
         case 'welcome':
@@ -317,7 +321,15 @@ function handleWebSocketMessage(data) {
             addSystemMessage('🌐 This bench is now public — messages are visible across the park');
             break;
 
+        case 'typing':
+            typingUsers.add(data.payload);
+            updateTypingIndicator();
+            break;
         
+        case 'stop_typing':
+            typingUsers.delete(data.payload);
+            updateTypingIndicator();
+            break;
 
         case 'error':
             // Server sent us an error (e.g. invalid admin token).
@@ -457,7 +469,7 @@ function addMessage(sender, text, timestamp, senderId) {
             <div class="message-sender">${escapeHtml(sender)}
             ${adminToken && senderId ? '<button class="btn-ban" title="Ban this user">🚫</button>' : ''}
             </div>
-            <div class="message-content">${escapeHtml(text)}</div>
+            <div class="message-content">${applyEmotes(escapeHtml(text))}</div>
             <div class="message-time">${time}</div>
         `;
         //Only the bench admin sees the ban button, and only on other people's messages.
@@ -553,6 +565,13 @@ function sendMessage() {
     // show our own message immediately — server doesn't echo back to sender
     addMessage(displayName, text, messageObj.timestamp);
 
+    clearTimeout(typingTimer);
+    ws.send(JSON.stringify({
+        type: 'stop_typing',
+        roomId: roomId,
+        payload: displayName
+    }));
+
     // clear input
     messageInput.value = '';
     messageInput.style.height = 'auto';
@@ -606,6 +625,50 @@ async function sendImage(file) {
     }
 }
 
+//One-time link generator for the bench.
+//Claim token acts both as url token and decryption key.
+//Server stores unreadable blobs only.
+async function generateOneTimeInvite() {
+    const claimTokenBytes = nacl.randomBytes(32);
+    const claimTokenBase64 = nacl.util.encodeBase64(claimTokenBytes);
+    const claimToken = base64ToBase64Url(claimTokenBase64);
+
+    const roomKeyBase64url = base64ToBase64Url(nacl.util.encodeBase64(encryptionKey));
+    const encryptedPayload = encryptMessage({ key: roomKeyBase64url }, claimTokenBytes);
+
+    const response = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            roomId: roomId,
+            encryptedPayload: encryptedPayload,
+            token: claimToken
+        })
+    });
+
+    if (!response.ok) {
+        alert('Failed to generate invite link. Please try again.');
+        return;
+    }
+
+    const data = await response.json();
+
+    const inviteURL = window.location.origin + '/join.html?token=' + claimToken;
+
+    inviteLinkInput.value = inviteURL;
+    inviteModal.classList.remove('hidden');
+}
+
+let lastCreateTime = 0;
+const CREATE_THROTTLE_MS = 500;
+
+function isThrottled(){
+    const now = Date.now();
+    if (now - lastCreateTime < CREATE_THROTTLE_MS) return true;
+    lastCreateTime = now;
+    return false;
+}
+
 //event listeners
 
 sendBtn.addEventListener('click', sendMessage);
@@ -634,6 +697,24 @@ messageInput.addEventListener('keydown', (e) => {
 messageInput.addEventListener('input', () => {
     messageInput.style.height = 'auto';
     messageInput.style.height = messageInput.scrollHeight + 'px';
+
+    // Typing indicator
+    if (!isConnected) return;
+
+    ws.send(JSON.stringify({
+        type: 'typing',
+        roomId: roomId,
+        payload: displayName
+    }));
+    
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+        ws.send(JSON.stringify({
+            type: 'stop_typing',
+            roomId: roomId,
+            payload: displayName
+        }));
+    }, TYPING_TIMEOUT_MS);
 });
 
 attachBtn.addEventListener('click', () => {
@@ -646,6 +727,14 @@ imageInput.addEventListener('change', (e) => {
         sendImage(file);
     }
     imageInput.value = '';
+});
+
+let lastHomeClick = 0;
+document.getElementById('homeBtn').addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastHomeClick < 300) return;
+    lastHomeClick = now;
+    window.open('/','_blank');
 });
 
 document.getElementById('pairBenchBtn').addEventListener('click', () => {
@@ -665,5 +754,29 @@ document.getElementById('pairBenchBtn').addEventListener('click', () => {
         adminHash: claimerBenchID.trim(),
     }))
 })
+
+//Typing indicator text is formatted, 
+// based on the number of people typing.
+function updateTypingIndicator() {
+    const indicator = document.getElementById('typingIndicator');
+    const names = [...typingUsers];
+
+    if (names.length === 0) {
+        indicator.textContent = '';
+        indicator.classList.add('hidden');
+    } else if (names.length === 1) {
+        indicator.textContent = `${names[0]} is typing...`;
+        indicator.classList.remove('hidden');
+    } else if (names.length === 2) {
+        indicator.textContent = `${names[0]} and ${names[1]} are typing...`;
+        indicator.classList.remove('hidden');
+    } else if (names.length === 3) {
+        indicator.textContent = `${names[0]},${names[1]} and ${names[2]} are typing...`;
+        indicator.classList.remove('hidden');
+    } else {
+        indicator.textContent = 'Several people are typing...';
+        indicator.classList.remove('hidden');
+    }
+}
 
 init();

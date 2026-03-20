@@ -289,13 +289,32 @@ func (c *Client) readPump(hub *Hub) {
 			// The client gets notified when that happens via a future WS message.
 			c.send <- buildOutgoing("pair_claim_sent", "", c.id)
 
+		case "typing":
+			if roomID == "" {
+				continue
+			}
+
+			// Payload is the display name.
+			// Relaying it to everyone else.
+			// No typing state is held by the server.
+			out := buildOutgoing("typing", msg.Payload, c.id)
+			hub.Broadcast(roomID, c.id, out)
+
+		case "stop_typing":
+			if roomID == "" {
+				continue
+			}
+
+			out := buildOutgoing("stop_typing", msg.Payload, c.id)
+			hub.Broadcast(roomID, c.id, out)
+
 		case "ban_client":
 			//Guard: must be in a room
 			if roomID == "" {
 				continue
 			}
 
-			//The msg.Payload is the senderID of the client to ban.
+			// The msg.Payload is the senderID of the client to ban.
 			//Admin doesn't share or sees an IP - there's server lookup internally.
 			targetID := msg.Payload
 			if targetID == "" {

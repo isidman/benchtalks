@@ -26,7 +26,7 @@
     
     <div class="room-header">
       <div class="room-info">
-        <h2>🪑 BenchTalks</h2>
+        <h2 id="homeBtn" style="cursor: pointer;" title="Back to home">🪑 Benchtalks</h2>
         <div class="room-status">
           <span id="userCount">0 people here</span>
           <label style="margin-left: 16px; font-size: 0.85rem; cursor: pointer;">
@@ -41,10 +41,10 @@
         <div id="adminMenu" class="hidden" style="position: relative;">
             <button id="adminMenuBtn" class="btn-small">Admin ▾</button>
             <div id="adminDropdown" class="admin-dropdown hidden">
-                <button class="dropdown-item" id="inviteBtn"
-                    title="Share this bench with others">
-                    👥 Invite people
-                </button>
+                <button class="dropdown-item" id="oneTimeInviteBtn"
+                    title="Generate a single-use invite link, expires in 5 minutes.">
+                    👥 Invite someone
+                  </button>
                 <button class="dropdown-item" id="newBenchBtn"
                     title="Create a new bench and open it in a new tab">
                     🪑 Create new bench
@@ -73,11 +73,12 @@
     
     <div id="messagesContainer" class="messages-container">
       <!-- where the messages should appear -->
-       <div id="typingIndicator" class="system-message" style="display: none;"></div>
     </div>
 
     
     <div class="input-container">
+      <div id="typingIndicator" class="typing-indicator hidden"></div>
+      <div class="input-row">
         <input
             type="file"
             id="imageInput"
@@ -91,6 +92,7 @@
         rows="1"
       ></textarea>
       <button id="sendBtn">Send</button>
+      </div>
     </div>
     <div style="text-align: center; font-size: 0.75rem; opacity: 0.4; padding: 8px 0;">
       <a href="/terms.html" style="color: white !important;" target="_blank">Terms</a> • 
@@ -104,7 +106,7 @@
       <div class="modal-box">
           <h3>Invite people</h3>
           <p style="font-size: 0.85rem; opacity: 0.7; margin: 8px 0 12px;">
-          Share this link. Anyone with it can join the bench.
+            Single-use link — expires in 5 minutes or on first click.
           </p>
           <div class="link-container">
               <input type="text" id="inviteLinkInput" readonly>
@@ -118,6 +120,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tweetnacl-util@0.15.1/nacl-util.min.js"></script>
   <script src="assets/js/crypto.js"></script>
+  <script src="assets/js/emotes.js"></script>
   <script src="assets/js/room.js"></script>
 
 </body>

@@ -10,10 +10,12 @@ body {
     color: #1a1a1a;
     min-height: 100vh;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 20px;
     line-height: 1.6;
+    box-sizing: border-box;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -26,6 +28,10 @@ body {
 .container {
     max-width: 600px;
     width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 header {
@@ -189,6 +195,10 @@ header h1 {
     .link-container input:focus {
         border-color: #e0e0e0;
     }
+}
+
+.hidden {
+    display:none;
 }
 
 .hint {

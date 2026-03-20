@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Joining bench... </title>
+        <link rel="stylesheet" href="/assets/css/style.css">
+    </head>
+    <body>
+        <div id="joiningState" class="hidden">
+            <p>Joining bench... </p>
+        </div>
+        <div id="errorState" class="hidden">
+            <p id="errorText"></p>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/tweetnacl-util@0.15.1/nacl-util.min.js"></script>
+        <script src="/assets/js/crypto.js"></script>
+
+        <script>
+            async function claimInvite() {
+                document.getElementById('joiningState').classList.remove('hidden');
+                // Last seg of path = raw token
+                const rawToken = new URLSearchParams(window.location.search).get('token');
+
+                // debugging:
+                // console.log('rawToken from URL:', rawToken);
+                // console.log('rawToken length:', rawToken.length);
+
+                if (!rawToken) {
+                    showError('Invalid invite link.');
+                    return;
+                }
+
+                try {
+                    // Ask the server to redeem the token.
+                    // Server marks it as used and gives back the encrypted payload + room id.
+                    const response = await fetch('/api/invite/claim/' + rawToken);
+
+                    if (!response.ok) {
+                        showError('This invite link is invalid, expired or has already been used.');
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    // Claim token = decrypt. key
+                    // Base64url > base 64 > bytes conversion (usable by NaCl)
+                    const tokenBase64 = base64UrlToBase64(rawToken);
+                    const tokenBytes = stringToKey(tokenBase64);
+
+                    // debugging:
+                    // console.log('claimTokenBytes used to encrypt would be different — checking payload decode');
+                    // console.log('encryptedPayload from server:', data.encryptedPayload);
+
+                    if (!tokenBytes || tokenBytes.length !== 32) {
+                        showError('Invalid invite link.');
+                        return;
+                    }
+
+                    // Payload decryption - secretbox pattern same with messages.
+                    // The payload is a base64 string with nonce prepended.
+                    const decrypted = decryptMessage(data.encryptedPayload, tokenBytes);
+
+                    if (!decrypted || !decrypted.key) {
+                        showError('Failed to decrypt invite. The link might be corrupted.');
+                        return;
+                    }
+
+                    // The room key as a base64url string = decrypted.key
+                    // buildRoomURL needs a Uint8 Array, so conversion needs to happen first.
+                    const roomKey = stringToKey(base64UrlToBase64(decrypted.key));
+
+                    // Room redirection with key going to the fragment, not the server. Ever.
+                    window.location.replace(buildRoomURL(data.roomId, roomKey));
+
+                } catch(err) {
+                    console.error('Claim error:', err);
+                    showError('Something went wrong. Better ask for a new invite link.');
+                }
+            }
+
+            function showError(message) {
+                document.getElementById('joiningState').classList.add('hidden');
+                document.getElementById('errorText').textContent = message;
+                document.getElementById('errorState').classList.remove('hidden');
+            }
+
+            claimInvite();
+        </script>
+    </body>
+</html>
