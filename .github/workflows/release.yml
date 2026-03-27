@@ -51,7 +51,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
         run: |
-          go build -ldflags="-s -w" -o benchtalks-${{ matrix.suffix }} .
+          go build -ldflags="-s -w" -o benchtalks-${{ matrix.suffix }} ./cmd/benchtalks/
 
       # -s -w strips debug info from the binary — makes it ~30% smaller
       # with no effect on runtime behaviour
